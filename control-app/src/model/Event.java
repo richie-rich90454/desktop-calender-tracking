@@ -1,4 +1,24 @@
 package model;
+/*
+ * Mutable calendar event model.
+ *
+ * Responsibilities:
+ * - Store event title
+ * - Store event date
+ * - Store start and end timestamps
+ *
+ * Java data types used:
+ * - String
+ * - LocalDate
+ * - LocalDateTime
+ *
+ * Java technologies involved:
+ * - java.time API
+ *
+ * Design intent:
+ * This class represents a single real-world event.
+ * It contains no UI or storage logic.
+ */
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -48,11 +68,3 @@ public class Event {
         return endTime;
     }
 }
-// Plain data object representing a calendar event.
-// Contains:
-// - Title
-// - Start time
-// - End time
-//
-// No logic beyond basic validation.
-// This is a pure data model.
