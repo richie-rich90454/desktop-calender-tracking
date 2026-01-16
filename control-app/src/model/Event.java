@@ -10,35 +10,30 @@ public class Event {
     private LocalDateTime endTime;
     private LocalDate date;
     public Event (String title, LocalDate date, LocalTime startTime, LocalTime endTime){
-        setTitle(title);
-        setDate(date);
-        setStartTime(startTime);
-        setEndTime(endTime);
-    }
-    public void setTitle(String title){
-        if (!title.equals("")){
-            this.title=title;
-        }
-        else{
+        if (title==null||title.isBlank()){
             this.title="Blank event";
         }
-    }
-    public void setDate(LocalDate date){
-        if (this.date.isAfter(date)||this.date.equals(null)){
-            this.date=date;
-        }
         else{
-            this.date=LocalDate.now();
+            this.title=title;
         }
-    }
-    public void setStartTime(LocalTime startTimeWithoutDate){
-        this.startTime=LocalDateTime.of(this.date, startTimeWithoutDate);
-    }
-    public void setEndTime(LocalTime endTimeWithoutDate){
-        this.startTime=LocalDateTime.of(this.date, endTimeWithoutDate);
+        if (date==null){
+            throw new IllegalArgumentException("Date cannot be null");
+        }
+        this.date=date;
+        if (startTime==null||endTime==null){
+            throw new IllegalArgumentException("Start/end time cannot be null");
+        }
+        this.startTime=LocalDateTime.of(date, startTime);
+        this.endTime=LocalDateTime.of(date, endTime);
+        if (!this.endTime.isAfter(this.startTime)){
+            throw new IllegalArgumentException("End time must be after start time");
+        }
     }
     public String getTitle(){
         return title;
+    }
+    public LocalDate getDate(){
+        return date;
     }
     public LocalDateTime getStartTime(){
         return startTime;
