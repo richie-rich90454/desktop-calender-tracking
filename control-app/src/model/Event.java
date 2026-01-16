@@ -67,4 +67,7 @@ public class Event {
     public LocalDateTime getEndTime(){
         return endTime;
     }
+    public String toString(){
+        return "Event starts at "+startTime.toString()+" and ends at "+endTime.toString();
+    }
 }
