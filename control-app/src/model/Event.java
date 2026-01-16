@@ -56,16 +56,16 @@ public class Event {
         this.endTime=LocalDateTime.of(date, newEndTime);
     }
     public String getTitle(){
-        return title;
+        return new String(title);
     }
     public LocalDate getDate(){
-        return date;
+        return LocalDate.of(this.date.getYear(), this.date.getMonthValue(), this.date.getDayOfMonth());
     }
     public LocalDateTime getStartTime(){
-        return startTime;
+        return LocalDateTime.of(this.startTime.toLocalDate(),this.startTime.toLocalTime());
     }
     public LocalDateTime getEndTime(){
-        return endTime;
+                return LocalDateTime.of(this.endTime.toLocalDate(),this.endTime.toLocalTime());
     }
     public String toString(){
         return "Event starts at "+startTime.toString()+" and ends at "+endTime.toString();

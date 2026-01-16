@@ -17,6 +17,7 @@ package model;
  * This class is a data holder, not a rule enforcer.
  */
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,10 +26,10 @@ public class CalenderModel {
     public CalenderModel(){
         this.allEvents=new ArrayList<>();
     }
-    public void addOneEvent(Event newEvent){
+    public void addEvent(Event newEvent){
         this.allEvents.add(newEvent);
     }
-    public void addManyEvents(List<Event> newEvents){
+    public void addEvents(List<Event> newEvents){
         this.allEvents.addAll(newEvents);
     }
     public boolean removeEvent(Event eventToRemove){
@@ -45,6 +46,18 @@ public class CalenderModel {
     }
     public int getEventCount(){
         return this.allEvents.size();
+    }
+    public List<Event> getEvents(){
+        return this.allEvents;
+    }
+    public List<Event> getEventsByDate(LocalDate searchingDate){
+        List<Event> newEventsList=new ArrayList<>();
+        for (int i=0;i<this.allEvents.size();i++){
+            if (this.allEvents.get(i).getDate().equals(searchingDate)){
+                newEventsList.add(new Event(allEvents.get(i).getTitle(), allEvents.get(i).getDate(), allEvents.get(i).getStartTime().toLocalTime(), allEvents.get(i).getEndTime().toLocalTime()));
+            }
+        }
+        return newEventsList;
     }
     public boolean isEmpty(){
         return this.allEvents.isEmpty();
