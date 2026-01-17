@@ -16,6 +16,6 @@
  * UI renders data, never owns it.
  */
 
-public class CalenderFrame {
+public class CalendarFrame {
     
 }

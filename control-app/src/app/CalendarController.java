@@ -22,6 +22,6 @@ package app;
  * All changes go through this controller.
  */
 
-public class CalenderController {
+public class CalendarController {
     
 }

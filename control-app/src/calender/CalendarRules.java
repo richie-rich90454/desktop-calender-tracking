@@ -20,6 +20,6 @@ package calender;
  * Business rules live here, not in UI.
  */
 
-public class CalenderRules {
+public class CalendarRules {
     
 }

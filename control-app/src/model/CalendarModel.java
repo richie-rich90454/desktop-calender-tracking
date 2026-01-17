@@ -23,9 +23,9 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-public class CalenderModel {
+public class CalendarModel {
     public List<Event> allEvents;
-    public CalenderModel(){
+    public CalendarModel(){
         this.allEvents=new ArrayList<>();
     }
     public void addEvent(Event newEvent){

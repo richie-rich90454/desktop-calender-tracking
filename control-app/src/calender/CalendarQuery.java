@@ -21,7 +21,7 @@ package calender;
  * Query logic should be reusable and declarative.
  */
 import model.Event;
-import model.CalenderModel;
+import model.CalendarModel;
 
 import java.time.Duration;
 import java.time.LocalDate;
@@ -29,9 +29,9 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
-public class CalenderQuery {
-    private CalenderModel model;
-    public CalenderQuery(CalenderModel calenderModel){
+public class CalendarQuery {
+    private CalendarModel model;
+    public CalendarQuery(CalendarModel calenderModel){
         this.model=calenderModel;
     }
     public List<Event> getEventsbyDate(LocalDate date){

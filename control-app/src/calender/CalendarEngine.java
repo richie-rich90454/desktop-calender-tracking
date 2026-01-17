@@ -17,6 +17,6 @@ package calender;
  * Keeps calendar-specific logic separate from UI and storage.
  */
 
-public class CalenderEngine {
+public class CalendarEngine {
     
 }
