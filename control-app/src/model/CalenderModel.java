@@ -19,6 +19,8 @@ package model;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 public class CalenderModel {
@@ -28,11 +30,15 @@ public class CalenderModel {
     }
     public void addEvent(Event newEvent){
         this.allEvents.add(newEvent);
+        sortEvents();
     }
     public void addEvents(List<Event> newEvents){
+        sortEvents();
         this.allEvents.addAll(newEvents);
+        sortEvents();
     }
     public boolean removeEvent(Event eventToRemove){
+        sortEvents();
         for (int i=0;i<allEvents.size();i++){
             if (eventToRemove.equals(this.allEvents.get(i))){
                 this.allEvents.remove(i);
@@ -48,9 +54,11 @@ public class CalenderModel {
         return this.allEvents.size();
     }
     public List<Event> getEvents(){
+        sortEvents();
         return this.allEvents;
     }
     public List<Event> getEventsByDate(LocalDate searchingDate){
+        sortEvents();
         List<Event> newEventsList=new ArrayList<>();
         for (int i=0;i<this.allEvents.size();i++){
             if (this.allEvents.get(i).getDate().equals(searchingDate)){
@@ -63,10 +71,19 @@ public class CalenderModel {
         return this.allEvents.isEmpty();
     }
     public String toString(){
+        sortEvents();
         String eventsString=new String();
         for (int i=0;i<allEvents.size();i++){
             eventsString.concat("Event "+Integer.toString(i+1)+": "+this.allEvents.get(i).toString()+" \n ");
         }
         return eventsString;
+    }
+    public void sortEvents(){
+        Collections.sort(this.allEvents, Comparator.comparing(Event::getDate).thenComparing(Event::getStartTime));
+    }
+    public List<Event> getSortedEvents(){
+        List<Event> sortedEvents=new ArrayList<>(allEvents);
+        sortedEvents.sort(Comparator.comparing(Event::getDate).thenComparing(Event::getStartTime));
+        return sortedEvents;
     }
 }
