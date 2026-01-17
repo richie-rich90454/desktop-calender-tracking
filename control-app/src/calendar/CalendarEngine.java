@@ -1,4 +1,4 @@
-package calender;
+package calendar;
 /*
  * Core calendar logic engine.
  *

@@ -1,4 +1,4 @@
-package calender;
+package calendar;
 /*
  * Calendar rule definitions.
  *
