@@ -112,6 +112,7 @@ public class CalendarController {
         }
         catch (IllegalArgumentException exception){
             model.addEvent(originalEvent);
+            return Optional.empty();
         }
     }
     public boolean deleteEvent(Event event){
