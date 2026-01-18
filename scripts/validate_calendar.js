@@ -19,6 +19,8 @@ let {promisify}=require("util");
 let readFile=promisify(fs.readFile);
 let stat=promisify(fs.stat);
 let readdir=promisify(fs.readdir);
+let chalk=require("chalk").default;
+let figlet=require("figlet");
 let DATE_REGEX=/^\d{4}-\d{2}-\d{2}$/;
 let TIME_REGEX=/^\d{2}:\d{2}:\d{2}$/;
 let DATETIME_REGEX=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/;
@@ -87,7 +89,7 @@ class CalendarValidator{
             }
             if (fileErrors.length==0){
                 this.filesValid++;
-                console.log(`✓ ${filePath}-Valid`);
+                console.log(chalk.green(`✓ ${filePath}-Valid`));
             }
             else{
                 this.errors.push(...fileErrors.map(err=>`${filePath}: ${err}`));
@@ -307,47 +309,43 @@ async function main(){
         }
     }
     if (validator.warnings.length>0){
-        console.log("\nWarnings:");
+        console.log(chalk.yellow("\nWarnings:"));
         validator.warnings.forEach(warning=>console.log(`  ⚠ ${warning}`));
     }
     if (validator.errors.length>0){
-        console.log("\nErrors:");
+        console.log(chalk.red("\nErrors:"));
         validator.errors.forEach(error=>console.log(`  ✗ ${error}`));
     }
-    console.log(`\nSummary:`);
+    console.log(chalk.cyan(`\nSummary:`));
     console.log(`  Files processed: ${validator.filesProcessed}`);
-    console.log(`  Files valid: ${validator.filesValid}`);
-    console.log(`  Total errors: ${validator.errors.length}`);
-    console.log(`  Total warnings: ${validator.warnings.length}`);
+    console.log(chalk.green(`  Files valid: ${validator.filesValid}`));
+    console.log(chalk.red(`  Total errors: ${validator.errors.length}`));
+    console.log(chalk.yellow(`  Total warnings: ${validator.warnings.length}`));
     process.exit(allValid?0:1);
 }
-function printHelp(){
+function printHelp() {
+    console.log(chalk.cyan(figlet.textSync("Calendar Validator", {horizontalLayout: "full"})));
     console.log(`
-Calendar JSON Validator
-=======================
-
-Validates JSON files against the calendar schema and business rules.
-
-Usage:
-  node validate_calendar.js [options] <file_or_directory...>
-
-Options:
-  --no-strict    Disable strict validation (skip datetime consistency checks)
-  --help, -h     Show this help message
-
-Examples:
-  node validate_calendar.js shared/calendar_schema.json
-  node validate_calendar.js --no-strict shared/
-  node validate_calendar.js file1.json file2.json
-
-Validation checks:
-  ✓ JSON syntax and structure
-  ✓ Required fields present
-  ✓ Date/time formats (ISO 8601)
-  ✓ Time ranges (end after start)
-  ✓ No overlapping events (same day)
-  ✓ Datetime consistency (strict mode only)
-`);
+        Calendar JSON Validator
+        ${chalk.gray("="*50)}
+        Validates JSON files against the calendar schema and business rules.
+        ${chalk.bold("Usage:")}
+        node validate_calendar.js [options] <file_or_directory...>
+        ${chalk.bold("Options:")}
+        ${chalk.yellow("--no-strict")}    Disable strict validation (skip datetime consistency checks)
+        ${chalk.yellow("--help, -h")}     Show this help message
+        ${chalk.bold("Examples:")}
+        node validate_calendar.js shared/calendar_schema.json
+        node validate_calendar.js --no-strict shared/
+        node validate_calendar.js file1.json file2.json
+        ${chalk.bold("Validation checks:")}
+        ${chalk.green("✓")} JSON syntax and structure
+        ${chalk.green("✓")} Required fields present
+        ${chalk.green("✓")} Date/time formats (ISO 8601)
+        ${chalk.green("✓")} Time ranges (end after start)
+        ${chalk.green("✓")} No overlapping events (same day)
+        ${chalk.green("✓")} Datetime consistency (strict mode only)
+    `);
 }
 if (require.main==module){
     main().catch(error=>{
