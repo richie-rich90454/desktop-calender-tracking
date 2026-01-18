@@ -1,15 +1,4 @@
 package app;
-import model.CalendarModel;
-import model.Event;
-import service.CalendarValidationService;
-import state.AppState;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import calendar.CalendarQuery;
 /*
  * Central application controller.
  *
@@ -32,22 +21,108 @@ import calendar.CalendarQuery;
  * UI NEVER talks directly to the model or storage.
  * All changes go through this controller.
  */
+import model.CalendarModel;
+import model.Event;
+import service.CalendarValidationService;
+import state.AppState;
+import storage.JsonStore;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import calendar.CalendarQuery;
 public class CalendarController {
     private CalendarModel model;
     private CalendarValidationService validationService;
     private CalendarQuery query;
     private AppState appState;
-    public CalendarController(AppState appState){
+    private JsonStore storage;
+    public CalendarController(AppState appState, JsonStore storage){
         this.appState=appState;
         this.model=appState.getCalendarModel();
+        this.storage=storage;
         this.validationService=new CalendarValidationService();
         this.query=new CalendarQuery(this.model);
     }
     public CalendarController(){
         this.appState=new AppState();
         this.model=appState.getCalendarModel();
+        this.storage=new JsonStore();
         this.validationService=new CalendarValidationService();
         this.query=new CalendarQuery(this.model);
+    }
+    public boolean saveCalendar(){
+        boolean success=storage.saveCalendar(model);
+        if (success){
+            appState.markAsClean();
+        }
+        return success;
+    }
+    public boolean saveCalendarToFile(String filePath){
+        JsonStore customStorage=new JsonStore(filePath);
+        boolean success=customStorage.saveCalendar(model);
+        if (success){
+            appState.markAsClean();
+        }
+        return success;
+    }
+    public boolean loadCalendar(){
+        CalendarModel loadedModel=storage.loadCalendar();
+        if (loadedModel!=null){
+            model.clearEvents();
+            List<Event> events=loadedModel.getEvents();
+            for (Event event:events){
+                if (validationService.isValid(event, model)){
+                    model.addEvent(event);
+                }
+            }
+            appState.markAsClean();
+            appState.notifyEventsChanged();
+            return true;
+        }
+        return false;
+    }
+    public boolean loadCalendarFromFile(String filePath){
+        JsonStore customStorage=new JsonStore(filePath);
+        CalendarModel loadedModel=customStorage.loadCalendar();
+        if (loadedModel!=null){
+            model.clearEvents();
+            List<Event> events=loadedModel.getEvents();
+            for (Event event:events){
+                if (validationService.isValid(event, model)){
+                    model.addEvent(event);
+                }
+            }
+            appState.markAsClean();
+            appState.notifyEventsChanged();
+            return true;
+        }
+        return false;
+    }
+    public boolean createBackup(){
+        return storage.createManualBackup(model);
+    }
+    public boolean exportCalendar(String exportPath){
+        return storage.exportCalendar(model, java.nio.file.Paths.get(exportPath));
+    }
+    public boolean importCalendar(String importPath){
+        CalendarModel importedModel=storage.importCalendar(java.nio.file.Paths.get(importPath));
+        if (importedModel!=null){
+            int importedCount=importEventsFromModel(importedModel);
+            return importedCount>0;
+        }
+        return false;
+    }
+    public boolean hasUnsavedChanges(){
+        return appState.isUnsaved();
+    }
+    public boolean saveFileExists(){
+        return storage.saveFileExists();
+    }
+    public String getStorageInfo(){
+        return storage.getStorageInfo();
     }
     public Optional<Event> createEvent(String title, LocalDate date, LocalTime startTime, LocalTime endTime){
         try{
@@ -214,6 +289,9 @@ public class CalendarController {
     public AppState getAppState(){
         return appState;
     }
+    public JsonStore getStorage(){
+        return storage;
+    }
     public void setSelectedDate(LocalDate date){
         appState.setSelectedDate(date);
     }
@@ -264,9 +342,6 @@ public class CalendarController {
     }
     public void switchToAgendaView(){
         appState.switchToAgendaView();
-    }
-    public boolean hasUnsavedChanges(){
-        return appState.isUnsaved();
     }
     public void markAsSaved(){
         appState.markAsClean();
