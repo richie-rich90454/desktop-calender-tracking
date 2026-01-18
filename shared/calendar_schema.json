@@ -1,0 +1,30 @@
+{
+    "version": "1.0",
+    "savedAt": "2026-1-18T14:30:00",
+    "events": [
+        {
+            "title": "Team Meeting",
+            "date": "2026-1-18",
+            "startTime": "09:00:00",
+            "endTime": "10:00:00",
+            "startDateTime": "2026-1-18T09:00:00",
+            "endDateTime": "2026-1-18T10:00:00"
+        },
+        {
+            "title": "Lunch Break",
+            "date": "2026-1-18",
+            "startTime": "12:00:00",
+            "endTime": "13:00:00",
+            "startDateTime": "2026-1-18T12:00:00",
+            "endDateTime": "2026-1-18T13:00:00"
+        },
+        {
+            "title": "Project Review",
+            "date": "2024-01-16",
+            "startTime": "14:00:00",
+            "endTime": "15:30:00",
+            "startDateTime": "2024-01-16T14:00:00",
+            "endDateTime": "2024-01-16T15:30:00"
+        }
+    ]
+}
