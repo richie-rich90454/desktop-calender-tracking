@@ -1,3 +1,4 @@
+package ui;
 /*
  * Event creation and editing dialog.
  *
