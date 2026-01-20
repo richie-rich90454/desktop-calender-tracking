@@ -36,18 +36,18 @@ import java.beans.PropertyChangeListener;
 public class CalendarFrame extends JFrame implements PropertyChangeListener {
     private static String APP_NAME="CalendarApp";
     private static Color PRIMARY_BLUE=new Color(66, 133, 244);
-    private static Color PRIMARY_GREEN=new Color(52, 168, 83);
-    private static Color PRIMARY_RED=new Color(234, 67, 53);
+    private static Color PRIMARY_GREEN=new Color(30, 120, 83);
+    private static Color PRIMARY_RED=new Color(220, 53, 69);
     private static Color NEUTRAL_BG=new Color(255, 255, 255);
     private static Color NEUTRAL_LIGHT=new Color(248, 249, 250);
     private static Color NEUTRAL_MID=new Color(233, 236, 239);
     private static Color NEUTRAL_DARK=new Color(222, 226, 230);
     private static Color TEXT_PRIMARY=new Color(33, 37, 41);
     private static Color TEXT_SECONDARY=new Color(108, 117, 125);
-    private static Color TEXT_LIGHT=new Color(173, 181, 189);
     private static Color CALENDAR_TODAY=new Color(219, 237, 255);
-    private static Color CALENDAR_WEEKEND=new Color(252, 249, 244);
+    private static Color CALENDAR_WEEKEND=new Color(250, 250, 252);
     private static Color CALENDAR_SELECTED=new Color(240, 248, 255);
+    private static Color DISABLED_TEXT=new Color(134, 142, 150);
     private CalendarController controller;
     private AppState appState;
     private JLabel monthYearLabel;
@@ -83,9 +83,8 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
             setIconImage(Toolkit.getDefaultToolkit().createImage(getClass().getResource("/icon.png")));
         }
         catch (Exception e){
-
         }
-    } 
+    }
     private void setupLookAndFeel(){
         try{
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
@@ -94,10 +93,8 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
             UIManager.put("TextField.font", new Font("SansSerif", Font.PLAIN, 13));
             UIManager.put("List.font", new Font("SansSerif", Font.PLAIN, 13));
             UIManager.put("Panel.background", NEUTRAL_BG);
-            
         }
         catch (Exception e){
-            System.err.println("Note: Could not set system look and feel: "+e.getMessage());
         }
     }
     private void createComponents(){
@@ -120,8 +117,8 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
         calendarGrid=new JPanel(new GridLayout(0, 7, 1, 1));
         calendarGrid.setBackground(NEUTRAL_MID);
         calendarGrid.setBorder(new EmptyBorder(1, 1, 1, 1));
-        eventsListModel=new DefaultListModel<>();
-        eventsList=new JList<>(eventsListModel);
+        eventsListModel=new DefaultListModel<Event>();
+        eventsList=new JList<Event>(eventsListModel);
         eventsList.setCellRenderer(new EventListCellRenderer());
         eventsList.setFont(new Font("SansSerif", Font.PLAIN, 13));
         eventsList.setBackground(NEUTRAL_BG);
@@ -198,7 +195,7 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
         statusLabel.setForeground(TEXT_SECONDARY);
         JLabel unsavedLabel=new JLabel("No unsaved changes");
         unsavedLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
-        unsavedLabel.setForeground(TEXT_LIGHT);
+        unsavedLabel.setForeground(TEXT_SECONDARY);
         statusBar.add(statusLabel, BorderLayout.WEST);
         statusBar.add(unsavedLabel, BorderLayout.EAST);
         setLayout(new BorderLayout());
@@ -218,6 +215,7 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
             label.setBorder(new EmptyBorder(8, 2, 8, 2));
             if (i==0||i==6){
                 label.setForeground(PRIMARY_RED);
+                label.setBackground(new Color(245, 245, 247));
             }
             else{
                 label.setForeground(TEXT_PRIMARY);
@@ -259,7 +257,7 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
             new EmptyBorder(8, 16, 8, 16)
         ));
         button.setFocusPainted(false);
-        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));   
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         button.addMouseListener(new MouseAdapter(){
             @Override
             public void mouseEntered(MouseEvent e){
@@ -282,8 +280,12 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
     }
     private JButton createViewModeButton(String text, AppState.ViewMode viewMode){
         JButton button=createTextButton(text);
+        button.putClientProperty("viewMode", viewMode);
         button.setFont(new Font("SansSerif", Font.PLAIN, 12));
-        button.setBorder(new EmptyBorder(6, 12, 6, 12));
+        button.setBorder(BorderFactory.createCompoundBorder(
+            new LineBorder(NEUTRAL_MID, 1),
+            new EmptyBorder(6, 12, 6, 12)
+        ));
         if (appState.getCurrentViewMode()==viewMode){
             button.setBackground(PRIMARY_GREEN);
             button.setForeground(Color.WHITE);
@@ -299,7 +301,44 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
         return button;
     }
     private void updateViewModeButtonStates(){
-        updateCalendar();
+        for (Component c:getContentPane().getComponents()){
+            if (c instanceof JPanel){
+                updateViewButtonsRecursively((JPanel) c);
+            }
+        }
+    }
+    private void updateViewButtonsRecursively(JPanel panel){
+        for (Component c:panel.getComponents()){
+            if (c instanceof JButton){
+                JButton b=(JButton) c;
+                Object mode=b.getClientProperty("viewMode");
+                if (mode instanceof AppState.ViewMode){
+                    applyViewModeStyle(b, (AppState.ViewMode) mode);
+                }
+            }
+            else if (c instanceof JPanel){
+                updateViewButtonsRecursively((JPanel) c);
+            }
+        }
+    }
+    private void applyViewModeStyle(JButton button, AppState.ViewMode viewMode){
+        boolean active=appState.getCurrentViewMode()==viewMode;
+        if (active){
+            button.setBackground(PRIMARY_GREEN);
+            button.setForeground(Color.WHITE);
+            button.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(PRIMARY_GREEN, 1),
+                new EmptyBorder(6, 12, 6, 12)
+            ));
+        }
+        else{
+            button.setBackground(NEUTRAL_BG);
+            button.setForeground(TEXT_PRIMARY);
+            button.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(NEUTRAL_MID, 1),
+                new EmptyBorder(6, 12, 6, 12)
+            ));
+        }
     }
     private void setupLayout(){
 
@@ -344,12 +383,12 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
         monthYearLabel.setText(selectedDate.format(monthYearFormatter));
         calendarGrid.removeAll();
         LocalDate firstDayOfMonth=selectedDate.withDayOfMonth(1);
-        int startDayOfWeek=firstDayOfMonth.getDayOfWeek().getValue()%7;
+        int startDayOfWeek=firstDayOfMonth.getDayOfWeek().getValue() % 7;
         int daysInMonth=selectedDate.lengthOfMonth();
         for (int i=0;i<startDayOfWeek;i++){
             calendarGrid.add(createDayCell(null));
         }
-        for (int day=1;day <= daysInMonth;day++){
+        for (int day=1;day<=daysInMonth;day++){
             LocalDate date=selectedDate.withDayOfMonth(day);
             calendarGrid.add(createDayCell(date));
         }
@@ -384,7 +423,7 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
                 dayLabel.setForeground(TEXT_PRIMARY);
             }
             else if (date.getMonth()!=selectedDate.getMonth()){
-                dayLabel.setForeground(TEXT_LIGHT);
+                dayLabel.setForeground(TEXT_SECONDARY);
             }
             else if (date.getDayOfWeek().getValue()>=6){
                 cell.setBackground(CALENDAR_WEEKEND);
@@ -404,7 +443,7 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
                 for (int i=0;i<maxEvents;i++){
                     Event event=dayEvents.get(i);
                     JLabel eventLabel=new JLabel("• "+event.getTitle());
-                    eventLabel.setFont(new Font("SansSerif", Font.PLAIN, 9));
+                    eventLabel.setFont(new Font("SansSerif", Font.PLAIN, 10));
                     eventLabel.setForeground(PRIMARY_GREEN);
                     eventLabel.setBackground(cell.getBackground());
                     eventLabel.setOpaque(true);
@@ -414,7 +453,7 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
                 if (dayEvents.size()>2){
                     JLabel moreLabel=new JLabel("+"+(dayEvents.size()-2)+" more");
                     moreLabel.setFont(new Font("SansSerif", Font.PLAIN, 8));
-                    moreLabel.setForeground(TEXT_LIGHT);
+                    moreLabel.setForeground(TEXT_SECONDARY);
                     eventsPanel.add(moreLabel);
                 }
                 cell.add(eventsPanel, BorderLayout.CENTER);
@@ -493,35 +532,56 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
         GridBagConstraints gbc=new GridBagConstraints();
         gbc.fill=GridBagConstraints.HORIZONTAL;
         gbc.insets=new Insets(6, 6, 6, 6);
-        gbc.gridx=0;gbc.gridy=0;
+        gbc.gridx=0;
+        gbc.gridy=0;
         JLabel titleLabel=new JLabel("Event Title:");
         titleLabel.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        titleLabel.setForeground(TEXT_PRIMARY);
         formPanel.add(titleLabel, gbc);
-        gbc.gridx=1;gbc.gridwidth=2;gbc.weightx=1.0;
+        gbc.gridx=1;
+        gbc.gridwidth=2;
+        gbc.weightx=1.0;
         JTextField titleField=new JTextField(20);
         titleField.setFont(new Font("SansSerif", Font.PLAIN, 13));
         formPanel.add(titleField, gbc);
-        gbc.gridx=0;gbc.gridy=1;gbc.gridwidth=1;gbc.weightx=0;
+        gbc.gridx=0;
+        gbc.gridy=1;
+        gbc.gridwidth=1;
+        gbc.weightx=0;
         JLabel dateLabel=new JLabel("Date:");
         dateLabel.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        dateLabel.setForeground(TEXT_PRIMARY);
         formPanel.add(dateLabel, gbc);
-        gbc.gridx=1;gbc.gridwidth=2;gbc.weightx=1.0;
+        gbc.gridx=1;
+        gbc.gridwidth=2;
+        gbc.weightx=1.0;
         JTextField dateField=new JTextField(appState.getSelectedDate().toString());
         dateField.setFont(new Font("SansSerif", Font.PLAIN, 13));
         formPanel.add(dateField, gbc);
-        gbc.gridx=0;gbc.gridy=2;gbc.gridwidth=1;gbc.weightx=0;
+        gbc.gridx=0;
+        gbc.gridy=2;
+        gbc.gridwidth=1;
+        gbc.weightx=0;
         JLabel startLabel=new JLabel("Start Time:");
         startLabel.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        startLabel.setForeground(TEXT_PRIMARY);
         formPanel.add(startLabel, gbc);
-        gbc.gridx=1;gbc.gridwidth=1;gbc.weightx=0.5;
+        gbc.gridx=1;
+        gbc.gridwidth=1;
+        gbc.weightx=0.5;
         JTextField startTimeField=new JTextField("09:00");
         startTimeField.setFont(new Font("SansSerif", Font.PLAIN, 13));
         formPanel.add(startTimeField, gbc);
-        gbc.gridx=2;gbc.gridwidth=1;gbc.weightx=0.5;
+        gbc.gridx=2;
+        gbc.gridwidth=1;
+        gbc.weightx=0.5;
         JTextField endTimeField=new JTextField("10:00");
         endTimeField.setFont(new Font("SansSerif", Font.PLAIN, 13));
         formPanel.add(endTimeField, gbc);
-        gbc.gridx=1;gbc.gridy=3;gbc.gridwidth=2;gbc.weightx=1.0;
+        gbc.gridx=1;
+        gbc.gridy=3;
+        gbc.gridwidth=2;
+        gbc.weightx=1.0;
         JLabel formatHint=new JLabel("Format: HH:MM (24-hour)");
         formatHint.setFont(new Font("SansSerif", Font.PLAIN, 11));
         formatHint.setForeground(TEXT_SECONDARY);
@@ -536,33 +596,41 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
             try{
                 String title=titleField.getText().trim();
                 if (title.isEmpty()){
-                    JOptionPane.showMessageDialog(dialog, "Please enter an event title.", "Input Required", JOptionPane.WARNING_MESSAGE);
+                    JOptionPane.showMessageDialog(dialog, "Please enter an event title.", 
+                        "Input Required", JOptionPane.WARNING_MESSAGE);
                     return;
                 }
                 LocalDate date=LocalDate.parse(dateField.getText().trim());
                 LocalTime startTime=LocalTime.parse(startTimeField.getText().trim());
                 LocalTime endTime=LocalTime.parse(endTimeField.getText().trim());
                 if (!endTime.isAfter(startTime)){
-                    JOptionPane.showMessageDialog(dialog, "End time must be after start time.", "Invalid Time Range", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(dialog, "End time must be after start time.", 
+                        "Invalid Time Range", JOptionPane.ERROR_MESSAGE);
                     return;
                 }
                 boolean success=controller.createEvent(title, date, startTime, endTime).isPresent();
                 if (success){
-                    JOptionPane.showMessageDialog(dialog, "Event created successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.showMessageDialog(dialog, "Event created successfully!", 
+                        "Success", JOptionPane.INFORMATION_MESSAGE);
                     dialog.dispose();
                 }
                 else{
                     JOptionPane.showMessageDialog(dialog, "Could not create event. There may be overlapping events.", "Conflict Detected", JOptionPane.ERROR_MESSAGE);
                 }
-                
             }
             catch (Exception ex){
-                JOptionPane.showMessageDialog(dialog, "Invalid input format. Please check your entries.\n"+"Date: YYYY-MM-DD\nTime: HH:MM", "Input Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(dialog, 
+                    "Invalid input format. Please check your entries.\n" +
+                    "Date: YYYY-MM-DD\nTime: HH:MM", 
+                    "Input Error", JOptionPane.ERROR_MESSAGE);
             }
         });
         buttonPanel.add(cancelBtn);
         buttonPanel.add(saveBtn);
-        gbc.gridx=0;gbc.gridy=4;gbc.gridwidth=3;gbc.weightx=1.0;
+        gbc.gridx=0;
+        gbc.gridy=4;
+        gbc.gridwidth=3;
+        gbc.weightx=1.0;
         formPanel.add(buttonPanel, gbc);
         dialog.add(formPanel, BorderLayout.CENTER);
         dialog.setVisible(true);
@@ -573,7 +641,7 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
             super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
             if (value==null){
                 setText("No events scheduled for this day");
-                setForeground(new Color(173, 181, 189));
+                setForeground(DISABLED_TEXT);
                 setHorizontalAlignment(SwingConstants.CENTER);
                 setFont(new Font("SansSerif", Font.ITALIC, 12));
                 setIcon(null);
@@ -583,7 +651,8 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
                 Event event=(Event) value;
                 String startTime=event.getStartTime().toLocalTime().format(timeFormatter);
                 String endTime=event.getEndTime().toLocalTime().format(timeFormatter);
-                setText(String.format("<html><b>%s</b><br/><font color='#6C757D' size='-1'>%s-%s</font></html>", event.getTitle(), startTime, endTime));
+                setText(String.format("<html><b>%s</b><br/><font color='#6C757D' size='-1'>%s-%s</font></html>", 
+                    event.getTitle(), startTime, endTime));
                 setIcon(new EventDotIcon(PRIMARY_GREEN));
                 setBorder(new EmptyBorder(10, 10, 10, 10));
                 setFont(new Font("SansSerif", Font.PLAIN, 13));
@@ -591,7 +660,7 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
             return this;
         }
     }
-    private static class EventDotIcon implements Icon{
+    private static class EventDotIcon implements Icon {
         private Color color;
         private static int SIZE=8;
         public EventDotIcon(Color color){
@@ -602,7 +671,7 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
             Graphics2D g2=(Graphics2D) g;
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setColor(color);
-            g2.fillOval(x, y+(c.getHeight()-SIZE)/2, SIZE, SIZE);
+            g2.fillOval(x, y+(c.getHeight()-SIZE) / 2, SIZE, SIZE);
         }
         @Override
         public int getIconWidth(){
@@ -613,13 +682,13 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
             return SIZE;
         }
     }
-    public static void main(String[] args) {
-    SwingUtilities.invokeLater(() -> {
-        // Create controller (which owns AppState)
-        CalendarController controller = new CalendarController();
-
-        // Create and show UI
-        new CalendarFrame(controller);
-    });
-}
+    public static void main(String[] args){
+        SwingUtilities.invokeLater(new Runnable(){
+            @Override
+            public void run(){
+                CalendarController controller=new CalendarController();
+                new CalendarFrame(controller);
+            }
+        });
+    }
 }
