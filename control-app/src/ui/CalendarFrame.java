@@ -12,7 +12,6 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.DayOfWeek;
-import java.time.LocalDateTime;
 import java.time.temporal.TemporalAdjusters;
 import java.util.Comparator;
 import java.util.List;
@@ -521,7 +520,6 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
         for (int hour=8;hour<=20;hour++){
             for (int day=0;day<7;day++){
                 LocalDate dayDate=startOfWeek.plusDays(day);
-                LocalTime time=LocalTime.of(hour, 0);
                 JPanel timeSlot=new JPanel(new BorderLayout());
                 timeSlot.setBackground(NEUTRAL_BG);
                 timeSlot.setBorder(BorderFactory.createCompoundBorder(
@@ -813,7 +811,6 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
     private void updateStatusBar(){
         SwingUtilities.invokeLater(()->{
             int totalEvents=controller.getEventCount();
-            LocalDate selectedDate=appState.getSelectedDate();
             List<Event> todaysEvents=controller.getEventsbyDate(LocalDate.now());
             String status=String.format("Total events: %d | Today: %d event%s | View: %s",
                 totalEvents,
