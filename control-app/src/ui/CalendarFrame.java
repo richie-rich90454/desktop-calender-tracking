@@ -591,7 +591,7 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
             return this;
         }
     }
-    private static class EventDotIcon implements Icon {
+    private static class EventDotIcon implements Icon{
         private Color color;
         private static int SIZE=8;
         public EventDotIcon(Color color){
@@ -602,7 +602,7 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
             Graphics2D g2=(Graphics2D) g;
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setColor(color);
-            g2.fillOval(x, y+(c.getHeight()-SIZE) / 2, SIZE, SIZE);
+            g2.fillOval(x, y+(c.getHeight()-SIZE)/2, SIZE, SIZE);
         }
         @Override
         public int getIconWidth(){
@@ -613,4 +613,13 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
             return SIZE;
         }
     }
+    public static void main(String[] args) {
+    SwingUtilities.invokeLater(() -> {
+        // Create controller (which owns AppState)
+        CalendarController controller = new CalendarController();
+
+        // Create and show UI
+        new CalendarFrame(controller);
+    });
+}
 }
