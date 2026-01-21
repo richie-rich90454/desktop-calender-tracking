@@ -82,6 +82,22 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
         setupListeners();
         updateUIFromState();
         setVisible(true);
+        addWindowListener(new java.awt.event.WindowAdapter(){
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent e){
+                if (controller.hasUnsavedChanges()){
+                    int result=JOptionPane.showConfirmDialog(CalendarFrame.this,"You have unsaved changes. Save before exiting?","Save Changes",
+                        JOptionPane.YES_NO_CANCEL_OPTION);
+                    if (result==JOptionPane.YES_OPTION){
+                        controller.saveCalendar();
+                    }
+                    else if (result==JOptionPane.CANCEL_OPTION){
+                        return;
+                    }
+                }
+                System.exit(0);
+            }
+        });
     }
     private void initializeWindow(){
         setTitle(APP_NAME);

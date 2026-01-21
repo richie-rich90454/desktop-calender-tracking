@@ -32,6 +32,9 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+
+import javax.swing.Timer;
+
 import calendar.CalendarQuery;
 public class CalendarController {
     private CalendarModel model;
@@ -45,6 +48,13 @@ public class CalendarController {
         this.storage=storage;
         this.validationService=new CalendarValidationService();
         this.query=new CalendarQuery(this.model);
+        Timer autoSaveTimer=new Timer(30000, e->{
+            if (hasUnsavedChanges()){
+                saveCalendar();
+                System.out.println("Auto-saved at "+new java.util.Date());
+            }
+        });
+        autoSaveTimer.start();
     }
     public CalendarController(){
         this.appState=new AppState();
@@ -52,12 +62,26 @@ public class CalendarController {
         this.storage=new JsonStore();
         this.validationService=new CalendarValidationService();
         this.query=new CalendarQuery(this.model);
+        Timer autoSaveTimer=new Timer(30000, e->{
+            if (hasUnsavedChanges()){
+                saveCalendar();
+                System.out.println("Auto-saved at "+new java.util.Date());
+            }
+        });
+        autoSaveTimer.start();
     }
     public CalendarController(AppState appState){
         this.appState=appState;
         this.model=appState.getCalendarModel();
         this.validationService=new CalendarValidationService();
         this.query=new CalendarQuery(this.model);
+        Timer autoSaveTimer=new Timer(30000, e->{
+            if (hasUnsavedChanges()){
+                saveCalendar();
+                System.out.println("Auto-saved at "+new java.util.Date());
+            }
+        });
+        autoSaveTimer.start();
     }
     public boolean saveCalendar(){
         boolean success=storage.saveCalendar(model);
