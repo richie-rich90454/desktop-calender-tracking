@@ -246,6 +246,19 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
         add(navigationPanel, BorderLayout.NORTH);
         add(contentPanel, BorderLayout.CENTER);
         add(statusBar, BorderLayout.SOUTH);
+        JButton saveButton=createPrimaryButton("Save");
+        saveButton.addActionListener(e->{
+            boolean saved=controller.saveCalendar();
+            if (saved){
+                statusLabel.setText("Calendar saved successfully!");
+                JOptionPane.showMessageDialog(this, "Calendar saved to: "+controller.getStorage().getStoragePath(),"Save Successful", JOptionPane.INFORMATION_MESSAGE);
+            }
+            else{
+                statusLabel.setText("Save failed!");
+                JOptionPane.showMessageDialog(this, "Failed to save calendar", "Save Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+        navButtons.add(saveButton);
     }
     private JButton createTextButton(String text){
         JButton button=new JButton(text);
