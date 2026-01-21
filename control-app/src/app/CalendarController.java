@@ -53,6 +53,12 @@ public class CalendarController {
         this.validationService=new CalendarValidationService();
         this.query=new CalendarQuery(this.model);
     }
+    public CalendarController(AppState appState){
+        this.appState=appState;
+        this.model=appState.getCalendarModel();
+        this.validationService=new CalendarValidationService();
+        this.query=new CalendarQuery(this.model);
+    }
     public boolean saveCalendar(){
         boolean success=storage.saveCalendar(model);
         if (success){

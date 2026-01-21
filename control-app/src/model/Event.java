@@ -23,6 +23,7 @@ package model;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Objects;
 
 public class Event {
     private String title;
@@ -65,9 +66,24 @@ public class Event {
         return LocalDateTime.of(this.startTime.toLocalDate(),this.startTime.toLocalTime());
     }
     public LocalDateTime getEndTime(){
-                return LocalDateTime.of(this.endTime.toLocalDate(),this.endTime.toLocalTime());
+        return LocalDateTime.of(this.endTime.toLocalDate(),this.endTime.toLocalTime());
     }
     public String toString(){
         return "Event starts at "+startTime.toString()+" and ends at "+endTime.toString();
+    }
+    @Override
+    public boolean equals(Object o){
+        if (this==o){
+            return true;
+        }
+        if (o==null||getClass()!=o.getClass()){
+            return false;
+        }
+        Event event= (Event) o;
+        return Objects.equals(title, event.title)&&Objects.equals(date, event.date)&&Objects.equals(startTime, event.startTime)&&Objects.equals(endTime, event.endTime);
+    }
+    @Override
+    public int hashCode(){
+        return Objects.hash(title, date, startTime, endTime);
     }
 }

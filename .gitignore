@@ -272,7 +272,7 @@ replay_pid*
 # debug information files
 *.dwo
 
-calender.json
+calendar.json
 tasks.json
 steps.txt
 icon.png
