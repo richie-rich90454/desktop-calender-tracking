@@ -287,7 +287,7 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
         JButton button=new JButton(text);
         button.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         button.setBackground(PRIMARY_BLUE);
-        button.setForeground(BUTTON_TEXT_ON_DARK);
+        button.setForeground(Color.BLACK);
         button.setBorder(BorderFactory.createCompoundBorder(
             new LineBorder(PRIMARY_BLUE, 1),
             new EmptyBorder(8, 16, 8, 16)
@@ -298,7 +298,7 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
             @Override
             public void mouseEntered(MouseEvent e){
                 button.setBackground(PRIMARY_BLUE.darker());
-                button.setForeground(BUTTON_TEXT_ON_DARK);
+                button.setForeground(Color.BLACK);
                 button.setBorder(BorderFactory.createCompoundBorder(
                     new LineBorder(PRIMARY_BLUE.darker(), 1),
                     new EmptyBorder(8, 16, 8, 16)
@@ -307,7 +307,7 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
             @Override
             public void mouseExited(MouseEvent e){
                 button.setBackground(PRIMARY_BLUE);
-                button.setForeground(BUTTON_TEXT_ON_DARK);
+                button.setForeground(Color.BLACK);
                 button.setBorder(BorderFactory.createCompoundBorder(
                     new LineBorder(PRIMARY_BLUE, 1),
                     new EmptyBorder(8, 16, 8, 16)
@@ -323,7 +323,7 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
         boolean active=appState.getCurrentViewMode()==viewMode;
         if (active){
             button.setBackground(PRIMARY_GREEN);
-            button.setForeground(BUTTON_TEXT_ON_DARK);
+            button.setForeground(Color.BLACK);
             button.setBorder(BorderFactory.createCompoundBorder(
                 new LineBorder(PRIMARY_GREEN, 1),
                 new EmptyBorder(6, 12, 6, 12)
@@ -331,7 +331,7 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
         }
         else{
             button.setBackground(NEUTRAL_BG);
-            button.setForeground(TEXT_PRIMARY);
+            button.setForeground(Color.BLACK);
             button.setBorder(BorderFactory.createCompoundBorder(
                 new LineBorder(NEUTRAL_MID, 1),
                 new EmptyBorder(6, 12, 6, 12)
