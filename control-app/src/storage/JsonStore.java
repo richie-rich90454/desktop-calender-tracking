@@ -31,8 +31,6 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 public class JsonStore {
     private static String DEFAULT_FILE_NAME="calendar_events.json";
     private static String BACKUP_FILE_NAME="calendar_events_backup.json";
@@ -158,27 +156,37 @@ public class JsonStore {
     private CalendarModel parseFromJson(String json){
         CalendarModel model=new CalendarModel();
         try{
-            Pattern pattern=Pattern.compile("\"events\"\\s*:\\s*\\[");
-            Matcher matcher=pattern.matcher(json);
-            if (!matcher.find()){
-                System.err.println("No events array found in JSON");
+            System.out.println("Parsing JSON: "+json.substring(0, Math.min(200, json.length())));
+            int eventsKeyPos=json.indexOf("\"events\"");
+            if (eventsKeyPos==-1){
+                System.err.println("ERROR: No 'events' key found in JSON");
                 return model;
             }
-            int eventsStart=matcher.end()-1;
-            int eventsEnd=findMatchingBracket(json, eventsStart);
-            if (eventsEnd==-1){
-                System.err.println("Could not find matching bracket for events array");
+            int bracketStart=json.indexOf('[', eventsKeyPos);
+            if (bracketStart==-1){
+                System.err.println("ERROR: No opening bracket after events");
                 return model;
             }
-            String eventsArray=json.substring(eventsStart+1, eventsEnd);
-            List<Event> events=parseEventsArray(eventsArray);
+            int bracketEnd=findMatchingBracket(json, bracketStart);
+            if (bracketEnd==-1){
+                System.err.println("ERROR: No matching closing bracket");
+                return model;
+            }
+            String eventsContent=json.substring(bracketStart+1, bracketEnd).trim();
+            System.out.println("Events content length: "+eventsContent.length());
+            System.out.println("Events content: "+(eventsContent.length() > 100 ? eventsContent.substring(0, 100)+"...":eventsContent));
+            if (eventsContent.isEmpty()){
+                System.out.println("INFO: Empty events array");
+                return model;
+            }
+            List<Event> events=parseEventsArray(eventsContent);
             System.out.println("Parsed "+events.size()+" events from JSON");
             for (Event event:events){
                 model.addEvent(event);
             }
         }
         catch (Exception e){
-            System.err.println("Error parsing JSON: "+e.getMessage());
+            System.err.println("ERROR parsing JSON: "+e.getMessage());
             e.printStackTrace();
         }
         return model;
@@ -186,19 +194,28 @@ public class JsonStore {
     private List<Event> parseEventsArray(String eventsArrayJson){
         List<Event> events=new ArrayList<>();
         try{
+            System.out.println("parseEventsArray input: "+eventsArrayJson.substring(0, Math.min(100, eventsArrayJson.length()))+"...");  
             String[] eventStrings=splitJsonObjects(eventsArrayJson);
-            for (String eventStr:eventStrings){
-                if (eventStr.trim().isEmpty()){
+            System.out.println("Found "+eventStrings.length+" event objects after splitting");
+            for (int i=0;i<eventStrings.length;i++){
+                String eventStr=eventStrings[i].trim();
+                if (eventStr.isEmpty()){
                     continue;
                 }
-                Event event=parseEventObject(eventStr.trim());
+                System.out.println("Parsing event object "+i+": "+eventStr.substring(0, Math.min(80, eventStr.length()))+"...");
+                Event event=parseEventObject(eventStr);
                 if (event!=null){
                     events.add(event);
+                    System.out.println("Successfully parsed event: "+event.getTitle());
+                }
+                else{
+                    System.err.println("Failed to parse event object "+i);
                 }
             }
         }
         catch (Exception e){
             System.err.println("Error parsing events array: "+e.getMessage());
+            e.printStackTrace();
         }
         return events;
     }
@@ -237,43 +254,73 @@ public class JsonStore {
         }
     }
     private String extractJsonField(String json, String fieldName){
-        String pattern="\""+fieldName+"\"\\s*:\\s*\"";
-        int start=json.indexOf(pattern);
-        if (start==-1){
+        try{
+            String fieldPattern="\""+fieldName+"\"";
+            int fieldPos=json.indexOf(fieldPattern);
+            if (fieldPos==-1){
+                System.err.println("DEBUG: Field '"+fieldName+"' not found at all");
+                return null;
+            }
+            int colonPos=json.indexOf(":", fieldPos+fieldPattern.length());
+            if (colonPos==-1){
+                System.err.println("DEBUG: No colon after field '"+fieldName+"'");
+                return null;
+            }
+            int valueStart=colonPos+1;
+            while (valueStart<json.length()&&Character.isWhitespace(json.charAt(valueStart))){
+                valueStart++;
+            }
+            if (valueStart>=json.length()||json.charAt(valueStart)!='"'){
+                System.err.println("DEBUG: Value doesn't start with quote for field '"+fieldName+"'");
+                return null;
+            }
+            int valueEnd=valueStart+1;
+            while (valueEnd<json.length()){
+                char c=json.charAt(valueEnd);
+                if (c=='"'&&json.charAt(valueEnd - 1)!='\\'){
+                    break;
+                }
+                valueEnd++;
+            }
+            if (valueEnd>=json.length()){
+                System.err.println("DEBUG: No closing quote for field '"+fieldName+"'");
+                return null;
+            }
+            String value=json.substring(valueStart+1, valueEnd);
+            value=unescapeJsonString(value);
+            System.out.println("SUCCESS: Extracted field '"+fieldName+"'='"+value+"'");
+            return value;
+        }
+        catch (Exception e){
+            System.err.println("ERROR extracting field '"+fieldName+"': "+e.getMessage());
+            e.printStackTrace();
             return null;
         }
-        start+=pattern.length();
-        int end=json.indexOf("\"", start);
-        if (end==-1){
-            return null;
-        }
-        return json.substring(start, end);
     }
     private String[] splitJsonObjects(String jsonArray){
         List<String> objects=new ArrayList<>();
+        int start=0;
         int braceCount=0;
-        StringBuilder currentObject=new StringBuilder();
         boolean inString=false;
-        for (int i=0;i<jsonArray.length();i++){
-            char c=jsonArray.charAt(i);
-            if (c=='"'&&(i==0||jsonArray.charAt(i-1)!='\\')){
+        String cleaned=jsonArray.replace("\n", "").replace("\r", "").trim();
+        for (int i=0;i<cleaned.length();i++){
+            char c=cleaned.charAt(i);
+            if (c=='"'&&(i==0||cleaned.charAt(i - 1)!='\\')){
                 inString=!inString;
             }
             if (!inString){
                 if (c=='{'){
+                    if (braceCount==0){
+                        start=i;
+                    }
                     braceCount++;
                 }
                 else if (c=='}'){
                     braceCount--;
-                }
-            }
-            currentObject.append(c);
-            if (!inString&&c=='}'&&braceCount==0){
-                objects.add(currentObject.toString());
-                currentObject=new StringBuilder();
-                i++;
-                while (i<jsonArray.length()&&Character.isWhitespace(jsonArray.charAt(i))){
-                    i++;
+                    if (braceCount==0){
+                        String obj=cleaned.substring(start, i+1);
+                        objects.add(obj);
+                    }
                 }
             }
         }
