@@ -51,7 +51,6 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
     private static Color CALENDAR_WEEKEND=new Color(250, 250, 252);
     private static Color CALENDAR_SELECTED=new Color(240, 248, 255);
     private static Color DISABLED_TEXT=new Color(134, 142, 150);
-    private static Color BUTTON_TEXT_ON_DARK=Color.WHITE;
     private CalendarController controller;
     private AppState appState;
     private JLabel monthYearLabel;
@@ -381,7 +380,7 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
                     boolean active=appState.getCurrentViewMode()==viewMode;
                     if (active){
                         button.setBackground(PRIMARY_GREEN);
-                        button.setForeground(BUTTON_TEXT_ON_DARK);
+                        button.setForeground(Color.BLACK);
                         button.setBorder(BorderFactory.createCompoundBorder(
                             new LineBorder(PRIMARY_GREEN, 1),
                             new EmptyBorder(6, 12, 6, 12)
