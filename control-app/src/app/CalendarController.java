@@ -48,6 +48,7 @@ public class CalendarController {
         this.storage=storage;
         this.validationService=new CalendarValidationService();
         this.query=new CalendarQuery(this.model);
+        loadCalendar();
         Timer autoSaveTimer=new Timer(30000, e->{
             if (hasUnsavedChanges()){
                 saveCalendar();
@@ -62,6 +63,7 @@ public class CalendarController {
         this.storage=new JsonStore();
         this.validationService=new CalendarValidationService();
         this.query=new CalendarQuery(this.model);
+        loadCalendar();
         Timer autoSaveTimer=new Timer(30000, e->{
             if (hasUnsavedChanges()){
                 saveCalendar();
@@ -75,6 +77,7 @@ public class CalendarController {
         this.model=appState.getCalendarModel();
         this.validationService=new CalendarValidationService();
         this.query=new CalendarQuery(this.model);
+        loadCalendar();
         Timer autoSaveTimer=new Timer(30000, e->{
             if (hasUnsavedChanges()){
                 saveCalendar();

@@ -31,6 +31,8 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 public class JsonStore {
     private static String DEFAULT_FILE_NAME="calendar_events.json";
     private static String BACKUP_FILE_NAME="calendar_events_backup.json";
@@ -156,23 +158,28 @@ public class JsonStore {
     private CalendarModel parseFromJson(String json){
         CalendarModel model=new CalendarModel();
         try{
-            int eventsStart=json.indexOf("\"events\": [");
-            if (eventsStart==-1){
+            Pattern pattern=Pattern.compile("\"events\"\\s*:\\s*\\[");
+            Matcher matcher=pattern.matcher(json);
+            if (!matcher.find()){
+                System.err.println("No events array found in JSON");
                 return model;
             }
-            eventsStart=json.indexOf("[", eventsStart);
+            int eventsStart=matcher.end()-1;
             int eventsEnd=findMatchingBracket(json, eventsStart);
             if (eventsEnd==-1){
+                System.err.println("Could not find matching bracket for events array");
                 return model;
             }
             String eventsArray=json.substring(eventsStart+1, eventsEnd);
             List<Event> events=parseEventsArray(eventsArray);
+            System.out.println("Parsed "+events.size()+" events from JSON");
             for (Event event:events){
                 model.addEvent(event);
             }
         }
         catch (Exception e){
             System.err.println("Error parsing JSON: "+e.getMessage());
+            e.printStackTrace();
         }
         return model;
     }
