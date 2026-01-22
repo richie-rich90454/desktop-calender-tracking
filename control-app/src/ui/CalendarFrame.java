@@ -344,22 +344,27 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
             public void mouseEntered(MouseEvent e){
                 if (appState.getCurrentViewMode()!=viewMode){
                     button.setBackground(NEUTRAL_LIGHT);
+                    button.setForeground(Color.BLACK);
                 }
                 else{
                     button.setBackground(PRIMARY_GREEN.darker());
+                    button.setForeground(Color.BLACK);
                 }
             }
             @Override
             public void mouseExited(MouseEvent e){
                 if (appState.getCurrentViewMode()!=viewMode){
                     button.setBackground(NEUTRAL_BG);
+                    button.setForeground(Color.BLACK);
                 }
-                else{
+                else {
                     button.setBackground(PRIMARY_GREEN);
+                    button.setForeground(Color.BLACK);
                 }
             }
         });
         button.addActionListener(e->{
+            currentSelectedDate=appState.getSelectedDate();
             controller.setViewMode(viewMode);
             updateViewModeButtonStates();
             updateCalendar();
