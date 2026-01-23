@@ -743,7 +743,7 @@ public class EventEditor {
                 catch (Exception ex){
                     JOptionPane.showMessageDialog(dialog,
                         "Invalid input format. Please check your entries.\n" +
-                        "Date: YYYY-MM-DD (e.g., 2024-01-20)\n" +
+                        "Date: YYYY-MM-DD (e.g., 2026-01-22)\n" +
                         "Time: HH:MM (24-hour, e.g., 14:30)",
                         "Input Error",
                         JOptionPane.ERROR_MESSAGE);

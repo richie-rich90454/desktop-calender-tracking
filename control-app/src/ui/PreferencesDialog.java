@@ -223,7 +223,7 @@ public class PreferencesDialog extends JDialog {
         versionLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         versionLabel.setForeground(TEXT_SECONDARY);
         versionLabel.setBorder(new EmptyBorder(10, 0, 20, 0));
-        JLabel copyrightLabel=new JLabel("© 2026 richie-rich90454. All rights reserved.", SwingConstants.CENTER);
+        JLabel copyrightLabel=new JLabel("© 2026 richie-rich90454.", SwingConstants.CENTER);
         copyrightLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         copyrightLabel.setForeground(TEXT_SECONDARY);
         JPanel infoPanel=new JPanel();
