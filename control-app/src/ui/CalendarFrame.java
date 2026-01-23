@@ -440,8 +440,7 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
         aboutDialog.setVisible(true);
     }
     private void showHelpDialog(){
-        JOptionPane.showMessageDialog(this,
-            "<html><div style='width:300px;'><h3>Calendar App Help</h3>"+"<p><b>Adding Events:</b> Click '+ New Event' button or double-click on a day.</p>"+"<p><b>Editing Events:</b> Double-click an event or right-click and select 'Edit'.</p>"+"<p><b>Deleting Events:</b> Right-click an event and select 'Delete'.</p>"+"<p><b>Navigation:</b> Use Previous/Next buttons or click on dates in the calendar.</p>"+"<p><b>View Modes:</b> Switch between Day, Week, Month, and Agenda views.</p>"+"<p><b>Saving:</b> Click the Save button to save your calendar.</p></div></html>","Help",JOptionPane.INFORMATION_MESSAGE);
+        JOptionPane.showMessageDialog(this, "<html><div style='width:300px;'><h3>Calendar App Help</h3>"+"<p><b>Adding Events:</b> Click '+ New Event' button or double-click on a day.</p>"+"<p><b>Editing Events:</b> Double-click an event or right-click and select 'Edit'.</p>"+"<p><b>Deleting Events:</b> Right-click an event and select 'Delete'.</p>"+"<p><b>Navigation:</b> Use Previous/Next buttons or click on dates in the calendar.</p>"+"<p><b>View Modes:</b> Switch between Day, Week, Month, and Agenda views.</p>"+"<p><b>Saving:</b> Click the Save button to save your calendar.</p></div></html>","Help", JOptionPane.INFORMATION_MESSAGE);
     }
     private void updateViewModeButtonStates(){
         for (Component c:viewModePanel.getComponents()){
@@ -624,25 +623,5 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
         public int getIconHeight(){
             return SIZE;
         }
-    }
-    public static void main(String[] args){
-        Locale.setDefault(Locale.ENGLISH);
-        SwingUtilities.invokeLater(new Runnable(){
-            public void run(){
-                try{
-                    CalendarController controller=new CalendarController();
-                    new CalendarFrame(controller);
-                }
-                catch (Exception e){
-                    e.printStackTrace();
-                    JOptionPane.showMessageDialog(
-                        null,
-                        "Failed to start Calendar App: "+e.getMessage(),
-                        "Error",
-                        JOptionPane.ERROR_MESSAGE
-                    );
-                }
-            }
-        });
     }
 }
