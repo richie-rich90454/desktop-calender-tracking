@@ -2,23 +2,23 @@
 #include <string>
 #include <vector>
 #include <chrono>
+#include <cstring>
 
-namespace CalendarOverlay
-{
-#pragma pack(push, 1)
-    struct CalendarEvent
-    {
+namespace CalendarOverlay{
+    #pragma pack(push, 1)
+    struct CalendarEvent{
         char title[256];
         char description[512];
         int64_t startTime;
         int64_t endTime;
-        uint8_t colorR, colorG, colorB, priority;
+        uint8_t colorR, colorG, colorB;
+        uint8_t priority;
         bool allDay;
-        CalendarEvent()
-        {
+        CalendarEvent(){
             memset(title, 0, sizeof(title));
             memset(description, 0, sizeof(description));
-            startTime=endTime=0;
+            startTime=0;
+            endTime=0;
             colorR=66;
             colorG=133;
             colorB=244;
@@ -26,16 +26,18 @@ namespace CalendarOverlay
             allDay=false;
         }
     };
-    struct OverlayConfig
-    {
+    struct OverlayConfig{
         bool enabled;
-        int positionX, positionY, width, height;
+        int positionX, positionY;
+        int width, height;
         float opacity;
-        bool showPastEvents, showAllDay;
-        int refreshInterval, fontSize;
-        uint32_t backgroundColor, textColor;
-        OverlayConfig()
-        {
+        bool showPastEvents;
+        bool showAllDay;
+        int refreshInterval;
+        int fontSize;
+        uint32_t backgroundColor;
+        uint32_t textColor;
+        OverlayConfig(){
             enabled=true;
             positionX=100;
             positionY=100;
@@ -50,5 +52,5 @@ namespace CalendarOverlay
             textColor=0xFFFFFFFF;
         }
     };
-#pragma pack(pop)
+    #pragma pack(pop)
 }
