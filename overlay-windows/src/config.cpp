@@ -120,14 +120,14 @@ namespace CalendarOverlay{
             return false;
         }
         file<<"{\n";
-        file<<"  \"enabled\": "<<(config.enabled ? "true" : "false")<<",\n";
+        file<<"  \"enabled\": "<<(config.enabled?"true":"false")<<",\n";
         file<<"  \"positionX\": "<<config.positionX<<",\n";
         file<<"  \"positionY\": "<<config.positionY<<",\n";
         file<<"  \"width\": "<<config.width<<",\n";
         file<<"  \"height\": "<<config.height<<",\n";
         file<<"  \"opacity\": "<<std::fixed<<std::setprecision(2)<<config.opacity<<",\n";
-        file<<"  \"showPastEvents\": "<<(config.showPastEvents ? "true" : "false")<<",\n";
-        file<<"  \"showAllDay\": "<<(config.showAllDay ? "true" : "false")<<",\n";
+        file<<"  \"showPastEvents\": "<<(config.showPastEvents?"true":"false")<<",\n";
+        file<<"  \"showAllDay\": "<<(config.showAllDay?"true":"false")<<",\n";
         file<<"  \"refreshInterval\": "<<config.refreshInterval<<",\n";
         file<<"  \"fontSize\": "<<config.fontSize<<",\n";
         file<<"  \"backgroundColor\": \""<<std::hex<<std::setw(8)<<std::setfill('0')<<config.backgroundColor<<"\",\n";
