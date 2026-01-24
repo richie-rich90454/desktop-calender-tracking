@@ -2,6 +2,10 @@
 #include <shlobj.h>
 #include <iostream>
 #include <algorithm>
+#include <fstream>
+#include <sstream>
+#include <iomanip>
+#include <filesystem>
 
 namespace CalendarOverlay{
     Config::Config(){
@@ -39,37 +43,66 @@ namespace CalendarOverlay{
             }
             if (trimmed.find("}")!=std::string::npos){
                 braceCount--;
-                if (braceCount==0)
+                if (braceCount==0){
                     break;
+                }
             }
             if (inConfig){
-                parseJsonLine(line, "enabled", config.enabled);
-                parseJsonLine(line, "positionX", config.positionX);
-                parseJsonLine(line, "positionY", config.positionY);
-                parseJsonLine(line, "width", config.width);
-                parseJsonLine(line, "height", config.height);
-                parseJsonLine(line, "opacity", config.opacity);
-                parseJsonLine(line, "showPastEvents", config.showPastEvents);
-                parseJsonLine(line, "showAllDay", config.showAllDay);
-                parseJsonLine(line, "refreshInterval", config.refreshInterval);
-                parseJsonLine(line, "fontSize", config.fontSize);
-                if (line.find("backgroundColor")!=std::string::npos){
-                    size_t start=line.find("\"", line.find("backgroundColor")+1);
-                    if (start!=std::string::npos){
-                        size_t end=line.find("\"", start+1);
-                        if (end!=std::string::npos){
-                            std::string hex=line.substr(start+1, end-start-1);
-                            config.backgroundColor=std::stoul(hex, nullptr, 16);
-                        }
-                    }
-                }
-                if (line.find("textColor")!=std::string::npos){
-                    size_t start=line.find("\"", line.find("textColor")+1);
-                    if (start!=std::string::npos){
-                        size_t end=line.find("\"", start+1);
-                        if (end!=std::string::npos){
-                            std::string hex=line.substr(start+1, end-start-1);
-                            config.textColor=std::stoul(hex, nullptr, 16);
+                std::string key;
+                std::string valueStr;
+                size_t quote1=line.find('"');
+                if (quote1!=std::string::npos){
+                    size_t quote2=line.find('"', quote1+1);
+                    if (quote2!=std::string::npos){
+                        key=line.substr(quote1+1, quote2-quote1-1);
+                        size_t colon=line.find(':', quote2);
+                        if (colon!=std::string::npos){
+                            size_t valueStart=line.find_first_not_of(" \t", colon+1);
+                            if (valueStart!=std::string::npos){
+                                size_t valueEnd=line.find_last_of(",}");
+                                if (valueEnd==std::string::npos){
+                                    valueEnd=line.length();
+                                }
+                                valueStr=line.substr(valueStart, valueEnd-valueStart);
+                                valueStr.erase(std::remove(valueStr.begin(), valueStr.end(), '\"'), valueStr.end());
+                                valueStr.erase(std::remove(valueStr.begin(), valueStr.end(), ','), valueStr.end());
+                                if (key=="enabled"){
+                                    config.enabled=(valueStr=="true");
+                                }
+                                else if (key=="positionX"){
+                                    config.positionX=std::stoi(valueStr);
+                                }
+                                else if (key=="positionY"){
+                                    config.positionY=std::stoi(valueStr);
+                                }
+                                else if (key=="width"){
+                                    config.width=std::stoi(valueStr);
+                                }
+                                else if (key=="height"){
+                                    config.height=std::stoi(valueStr);
+                                }
+                                else if (key=="opacity"){
+                                    config.opacity=std::stof(valueStr);
+                                }
+                                else if (key=="showPastEvents"){
+                                    config.showPastEvents=(valueStr=="true");
+                                }
+                                else if (key=="showAllDay"){
+                                    config.showAllDay=(valueStr=="true");
+                                }
+                                else if (key=="refreshInterval"){
+                                    config.refreshInterval=std::stoi(valueStr);
+                                }
+                                else if (key=="fontSize"){
+                                    config.fontSize=std::stoi(valueStr);
+                                }
+                                else if (key=="backgroundColor"){
+                                    config.backgroundColor=std::stoul(valueStr, nullptr, 16);
+                                }
+                                else if (key=="textColor"){
+                                    config.textColor=std::stoul(valueStr, nullptr, 16);
+                                }
+                            }
                         }
                     }
                 }
@@ -110,77 +143,5 @@ namespace CalendarOverlay{
     }
     void Config::setDefaults(){
         config=OverlayConfig();
-    }
-    bool Config::parseJsonLine(const std::string &line, const std::string &key, std::string &value){
-        if (line.find("\""+key+"\"")!=std::string::npos){
-            size_t start=line.find("\"", line.find(key)+key.length()+2);
-            if (start!=std::string::npos){
-                size_t end=line.find("\"", start+1);
-                if (end!=std::string::npos){
-                    value=line.substr(start+1, end-start-1);
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-    bool Config::parseJsonLine(const std::string &line, const std::string &key, bool &value){
-        if (line.find("\""+key+"\"")!=std::string::npos){
-            size_t start=line.find(":", line.find(key))+1;
-            if (start!=std::string::npos){
-                std::string val=line.substr(start);
-                val.erase(std::remove_if(val.begin(), val.end(), isspace), val.end());
-                if (val.find("true")!=std::string::npos){
-                    value=true;
-                    return true;
-                }
-                if (val.find("false")!=std::string::npos){
-                    value=false;
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-    bool Config::parseJsonLine(const std::string &line, const std::string &key, int &value)
-    {
-        if (line.find("\""+key+"\"")!=std::string::npos){
-            size_t start=line.find(":", line.find(key))+1;
-            if (start!=std::string::npos){
-                size_t end=line.find_first_of(",}", start);
-                if (end!=std::string::npos){
-                    std::string val=line.substr(start, end-start);
-                    val.erase(std::remove_if(val.begin(), val.end(), isspace), val.end());
-                    try{
-                        value=std::stoi(val);
-                        return true;
-                    }
-                    catch (...){
-
-                    }
-                }
-            }
-        }
-        return false;
-    }
-    bool Config::parseJsonLine(const std::string &line, const std::string &key, float &value){
-        if (line.find("\""+key+"\"")!=std::string::npos){
-            size_t start=line.find(":", line.find(key))+1;
-            if (start!=std::string::npos){
-                size_t end=line.find_first_of(",}", start);
-                if (end!=std::string::npos){
-                    std::string val=line.substr(start, end-start);
-                    val.erase(std::remove_if(val.begin(), val.end(), isspace), val.end());
-                    try{
-                        value=std::stof(val);
-                        return true;
-                    }
-                    catch (...){
-                        
-                    }
-                }
-            }
-        }
-        return false;
     }
 }
