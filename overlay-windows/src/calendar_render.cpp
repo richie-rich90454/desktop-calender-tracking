@@ -1,0 +1,250 @@
+#include "calendar_render.h"
+#include <wincodec.h>
+#include <sstream>
+#include <iomanip>
+#include <chrono>
+#include <algorithm>
+#pragma comment(lib, "windowscodecs.lib")
+
+namespace CalendarOverlay{
+    CalendarRenderer::CalendarRenderer() : d2dFactory(nullptr), renderTarget(nullptr), 
+        textBrush(nullptr), backgroundBrush(nullptr), eventBrush(nullptr), 
+        writeFactory(nullptr), textFormat(nullptr), titleFormat(nullptr), 
+        timeFormat(nullptr), hwnd(NULL), padding(10.0f), eventHeight(40.0f), 
+        timeWidth(80.0f), lastRenderTime(0), framesRendered(0){
+        InitializeCriticalSection(&cs);
+    }
+    CalendarRenderer::~CalendarRenderer(){
+        cleanup();
+        DeleteCriticalSection(&cs);
+    }
+    bool CalendarRenderer::initialize(HWND window){
+        hwnd=window;
+        HRESULT hr=D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &d2dFactory);
+        if (FAILED(hr)){
+            return false;
+        }
+        hr=DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory),
+            reinterpret_cast<IUnknown**>(&writeFactory));
+        if (FAILED(hr)){
+            return false;
+        }
+        if (writeFactory){
+            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, config.fontSize, L"en-us", &textFormat);
+            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, config.fontSize+2, L"en-us", &titleFormat);  
+            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_ITALIC, DWRITE_FONT_STRETCH_NORMAL, config.fontSize-2, L"en-us", &timeFormat);
+        }
+        return createDeviceResources();
+    }
+    bool CalendarRenderer::createDeviceResources(){
+        if (!d2dFactory||!hwnd){
+            return false;
+        }
+        RECT rc;
+        GetClientRect(hwnd, &rc);
+        D2D1_SIZE_U size=D2D1::SizeU(rc.right-rc.left, rc.bottom-rc.top);
+        HRESULT hr=d2dFactory->CreateHwndRenderTarget(D2D1::RenderTargetProperties(), D2D1::HwndRenderTargetProperties(hwnd, size), &renderTarget);
+        if (FAILED(hr)){
+            return false;
+        }
+        if (renderTarget){
+            renderTarget->CreateSolidColorBrush(toColorF(config.textColor), &textBrush);
+            renderTarget->CreateSolidColorBrush(toColorF(config.backgroundColor), &backgroundBrush);
+            renderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::LightBlue), &eventBrush);
+        }
+        renderSize=renderTarget->GetSize();
+        return true;
+    }
+    void CalendarRenderer::releaseDeviceResources(){
+        if (textBrush) textBrush->Release();
+        if (backgroundBrush) backgroundBrush->Release();
+        if (eventBrush) eventBrush->Release();
+        if (renderTarget) renderTarget->Release();
+        if (textFormat) textFormat->Release();
+        if (titleFormat) titleFormat->Release();
+        if (timeFormat) timeFormat->Release();
+        textBrush=nullptr;
+        backgroundBrush=nullptr;
+        eventBrush=nullptr;
+        renderTarget=nullptr;
+        textFormat=nullptr;
+        titleFormat=nullptr;
+        timeFormat=nullptr;
+    }
+    void CalendarRenderer::resize(int width, int height){
+        EnterCriticalSection(&cs);
+        if (renderTarget){
+            renderTarget->Resize(D2D1::SizeU(width, height));
+            renderSize=renderTarget->GetSize();
+        }
+        LeaveCriticalSection(&cs);
+    }
+    void CalendarRenderer::render(){
+        EnterCriticalSection(&cs);
+        if (!renderTarget){
+            LeaveCriticalSection(&cs);
+            return;
+        }
+        renderTarget->BeginDraw();
+        renderTarget->SetTransform(D2D1::Matrix3x2F::Identity());
+        renderTarget->Clear(D2D1::ColorF(0, 0, 0, 0));
+        drawBackground();
+        drawDateHeader();
+        drawEvents();
+        drawCurrentTime();
+        HRESULT hr=renderTarget->EndDraw();
+        if (hr==D2DERR_RECREATE_TARGET){
+            releaseDeviceResources();
+            createDeviceResources();
+        }
+        framesRendered++;
+        lastRenderTime=GetTickCount64();
+        LeaveCriticalSection(&cs);
+    }
+    void CalendarRenderer::drawBackground(){
+        if (!backgroundBrush||!renderTarget){
+            return;
+        }
+        D2D1_ROUNDED_RECT roundedRect=D2D1::RoundedRect(D2D1::RectF(0, 0, renderSize.width, renderSize.height), 8.0f, 8.0f);
+        renderTarget->FillRoundedRectangle(roundedRect, backgroundBrush);
+        ID2D1SolidColorBrush* borderBrush;
+        renderTarget->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.2f), &borderBrush);
+        renderTarget->DrawRoundedRectangle(roundedRect, borderBrush, 1.0f);
+        borderBrush->Release();
+    }
+    void CalendarRenderer::drawDateHeader(){
+        if (!textBrush||!titleFormat||!renderTarget){
+            return;
+        }
+        auto now=std::chrono::system_clock::now();
+        auto nowTime=std::chrono::system_clock::to_time_t(now);
+        std::tm localTime;
+        localtime_s(&localTime, &nowTime);
+        std::wstringstream wss;
+        wss<<std::put_time(&localTime, L"%A, %B %d, %Y");
+        D2D1_RECT_F textRect=D2D1::RectF(padding, padding, renderSize.width-padding, padding+30.0f);
+        renderTarget->DrawTextW(wss.str().c_str(), static_cast<UINT32>(wss.str().length()), titleFormat, textRect, textBrush);
+        ID2D1SolidColorBrush* lineBrush;
+        renderTarget->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.3f), &lineBrush);
+        float lineY=padding+35.0f;
+        renderTarget->DrawLine(D2D1::Point2F(padding, lineY), D2D1::Point2F(renderSize.width-padding, lineY), lineBrush, 1.0f);
+        lineBrush->Release();
+    }
+    void CalendarRenderer::drawEvents(){
+        if (!textBrush||!textFormat||!renderTarget){
+            return;
+        }
+        float startY=padding+50.0f;
+        float currentY=startY;
+        auto upcomingEvents=getUpcomingEvents(24);
+        for (const auto& event : upcomingEvents){
+            if (currentY+eventHeight>renderSize.height-padding)
+                break;
+            drawEvent(event, currentY);
+            currentY+=eventHeight+5.0f;
+        }
+    }
+    
+    void CalendarRenderer::drawEvent(const CalendarEvent& event, float yPos){
+        if (!eventBrush||!textBrush||!textFormat||!timeFormat||!renderTarget){
+            return;
+        }
+        D2D1_ROUNDED_RECT eventRect=D2D1::RoundedRect(D2D1::RectF(padding, yPos, renderSize.width-padding, yPos+eventHeight), 4.0f, 4.0f);
+        D2D1_COLOR_F eventColor=toColorF(event.colorR, event.colorG, event.colorB, 0.7f);
+        eventBrush->SetColor(eventColor);
+        renderTarget->FillRoundedRectangle(eventRect, eventBrush);
+        auto eventTime=std::chrono::system_clock::from_time_t(event.startTime/1000);
+        auto eventTimeT=std::chrono::system_clock::to_time_t(eventTime);
+        std::tm eventTm;
+        localtime_s(&eventTm, &eventTimeT);
+        std::wstringstream timeStream;
+        timeStream<<std::put_time(&eventTm, L"%I:%M %p");
+        D2D1_RECT_F timeRect=D2D1::RectF(padding+5.0f, yPos+5.0f, padding+timeWidth, yPos+eventHeight-5.0f);
+        renderTarget->DrawTextW(timeStream.str().c_str(), static_cast<UINT32>(timeStream.str().length()), timeFormat, timeRect, textBrush);
+        std::wstring title;
+        for (int i=0;i<256&&event.title[i]!='\0';i++){
+            title+=static_cast<wchar_t>(event.title[i]);
+        }
+        D2D1_RECT_F titleRect=D2D1::RectF(padding+timeWidth+5.0f, yPos+5.0f, renderSize.width-padding-5.0f, yPos+eventHeight-5.0f);
+        renderTarget->DrawTextW(title.c_str(), static_cast<UINT32>(title.length()), textFormat, titleRect, textBrush);
+    }
+    void CalendarRenderer::drawCurrentTime(){
+        if (!textBrush||!textFormat||!renderTarget){
+            return;
+        }
+        auto now=std::chrono::system_clock::now();
+        auto nowTime=std::chrono::system_clock::to_time_t(now);
+        std::tm localTime;
+        localtime_s(&localTime, &nowTime);
+        std::wstringstream wss;
+        wss<<std::put_time(&localTime, L"%I:%M:%S %p");
+        D2D1_RECT_F textRect=D2D1::RectF(padding, renderSize.height-25.0f, renderSize.width-padding, renderSize.height-5.0f);
+        renderTarget->DrawTextW(wss.str().c_str(), static_cast<UINT32>(wss.str().length()), timeFormat, textRect, textBrush);
+    }
+    void CalendarRenderer::setEvents(const std::vector<CalendarEvent>& newEvents){
+        EnterCriticalSection(&cs);
+        events=newEvents;
+        LeaveCriticalSection(&cs);
+    }
+    void CalendarRenderer::setConfig(const OverlayConfig& newConfig){
+        EnterCriticalSection(&cs);
+        config=newConfig;
+        if (renderTarget&&textBrush&&backgroundBrush){
+            textBrush->SetColor(toColorF(config.textColor));
+            backgroundBrush->SetColor(toColorF(config.backgroundColor));
+        }
+        if (writeFactory){
+            if (textFormat){
+                textFormat->Release();
+            }
+            if (titleFormat){
+                titleFormat->Release();
+            }
+            if (timeFormat){
+                timeFormat->Release();
+            }
+            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, config.fontSize, L"en-us", &textFormat);
+            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, config.fontSize+2, L"en-us", &titleFormat);
+            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_ITALIC, DWRITE_FONT_STRETCH_NORMAL, config.fontSize-2, L"en-us", &timeFormat);
+        }
+        LeaveCriticalSection(&cs);
+    }
+    void CalendarRenderer::cleanup(){
+        releaseDeviceResources();
+        if (writeFactory){
+            writeFactory->Release();
+        }
+        if (d2dFactory){
+            d2dFactory->Release();
+        }
+        writeFactory=nullptr;
+        d2dFactory=nullptr;
+    }
+    D2D1_COLOR_F CalendarRenderer::toColorF(uint32_t color) const{
+        float a=((color>>24)&0xFF)/255.0f;
+        float r=((color>>16)&0xFF)/255.0f;
+        float g=((color>>8)&0xFF)/255.0f;
+        float b=(color&0xFF)/255.0f;
+        return D2D1::ColorF(r, g, b, a);
+    }
+    D2D1::ColorF CalendarRenderer::toColorF(uint8_t r, uint8_t g, uint8_t b, float a) const{
+        return D2D1::ColorF(r/255.0f, g/255.0f, b/255.0f, a);
+    }
+    std::vector<CalendarEvent> CalendarRenderer::getUpcomingEvents(int hours) const{
+        std::vector<CalendarEvent> upcoming;
+        auto now=std::chrono::system_clock::now();
+        auto nowMs=std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+        auto cutoff=nowMs+(hours*3600*1000);
+        EnterCriticalSection(&cs);
+        for (const auto& event : events){
+            if (event.startTime>=nowMs&&event.startTime<=cutoff){
+                upcoming.push_back(event);
+            }
+        }
+        std::sort(upcoming.begin(), upcoming.end(), [](const CalendarEvent& a, const CalendarEvent& b){
+            return a.startTime<b.startTime;
+        });
+        LeaveCriticalSection(&cs);
+        return upcoming;
+    }
+}

@@ -6,7 +6,7 @@
 #include <chrono>
 #include <algorithm>
 #include <sys/stat.h>
-#define NOMINMAX
+// #define NOMINMAX
 #include <windows.h>
 
 namespace CalendarOverlay{
