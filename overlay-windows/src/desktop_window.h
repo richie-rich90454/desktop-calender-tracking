@@ -1,5 +1,12 @@
 #pragma once
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+
 #ifndef _WIN32_WINNT
 #define _WIN32_WINNT 0x0500
 #endif
@@ -13,10 +20,12 @@
 #endif
 
 #include <windows.h>
+#undef __in
+#undef __out
 #include <shellapi.h>
 #include <string>
 #include <memory>
-#include <shared/calendar_shared.h>
+#include "shared/calendar_shared.h"
 
 namespace CalendarOverlay{
     class CalendarRenderer;

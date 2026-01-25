@@ -1,10 +1,20 @@
 #pragma once
+
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+
 #include <vector>
 #include <string>
 #include <memory>
 #include <chrono>
 #include <mutex>
 #include <windows.h>
+#undef __in
+#undef __out
 #include <shared/calendar_shared.h>
 #include <json/json.hpp>
 namespace CalendarOverlay{

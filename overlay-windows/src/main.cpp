@@ -1,5 +1,13 @@
-#include "desktop_window.h"
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
 #include <windows.h>
+#undef __in
+#undef __out
+#include "desktop_window.h"
 #include <iostream>
 #include <thread>
 #include <atomic>
