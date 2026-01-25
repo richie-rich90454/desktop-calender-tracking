@@ -21,6 +21,9 @@ namespace CalendarOverlay{
         OverlayConfig getConfig() const{
             return config;
         }
+        std::string getDataPath() const {
+            return dataPath;
+        }
         void setClickThrough(bool enabled);
         void setPosition(int x, int y);
         void setSize(int width, int height);

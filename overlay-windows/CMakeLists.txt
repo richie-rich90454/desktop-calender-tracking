@@ -29,6 +29,7 @@ set(RESOURCES
 )
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/src)
 add_executable(CalendarOverlay ${SOURCES} ${HEADERS} ${RESOURCES})
+target_include_directories(CalendarOverlay PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/json)
 target_link_libraries(CalendarOverlay
     d2d1
     dwrite

@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <chrono>
 #include <algorithm>
+#include <vector>
 #pragma comment(lib, "windowscodecs.lib")
 
 namespace CalendarOverlay{

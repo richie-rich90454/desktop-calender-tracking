@@ -19,6 +19,7 @@
 #include <shellapi.h>
 #include <iostream>
 #include <memory>
+#include <vector>
 #pragma comment(lib, "comctl32.lib")
 namespace CalendarOverlay{
     DesktopWindow::DesktopWindow() : hwnd(NULL), hInstance(GetModuleHandle(NULL)), visible(false), dragging(false), dragStartX(0), dragStartY(0), windowX(100), windowY(100), windowWidth(400), windowHeight(600), renderTimer(0), updateTimer(0), trayIconVisible(false), alpha(255), clickThrough(false){
@@ -73,8 +74,12 @@ namespace CalendarOverlay{
         return RegisterClassExW(&wc)!=0;
     }
     bool DesktopWindow::createWindowInstance(){
+        DWORD exStyle=WS_EX_TOPMOST|WS_EX_LAYERED|WS_EX_TOOLWINDOW|WS_EX_NOACTIVATE;
+        if (clickThrough) {
+            exStyle|=WS_EX_TRANSPARENT;
+        }
         hwnd=CreateWindowExW(
-            WS_EX_TOPMOST|WS_EX_TRANSPARENT|WS_EX_LAYERED|WS_EX_TOOLWINDOW|WS_EX_NOACTIVATE,
+            exStyle,
             className.c_str(),
             L"Calendar Overlay",
             WS_POPUP,
@@ -84,9 +89,6 @@ namespace CalendarOverlay{
             return false;
         }
         SetLayeredWindowAttributes(hwnd, RGB(0, 0, 0), alpha, LWA_ALPHA|LWA_COLORKEY);
-        if (clickThrough){
-            SetWindowLong(hwnd, GWL_EXSTYLE, GetWindowLong(hwnd, GWL_EXSTYLE)|WS_EX_TRANSPARENT);
-        }
         return true;
     }
     void DesktopWindow::show(){

@@ -6,12 +6,14 @@
 #include <chrono>
 #include <algorithm>
 #include <sys/stat.h>
-// #define NOMINMAX
 #include <windows.h>
+#include <json/json.hpp>
+
+using json=nlohmann::json;
 
 namespace CalendarOverlay{
     EventManager::EventManager() : initialized(false), fileWatcherThread(NULL),
-        sharedMemory(NULL), sharedMemoryPtr(nullptr){
+        sharedMemory(NULL), sharedMemoryPtr(nullptr), stopWatcher(false){
         lastUpdate=std::chrono::system_clock::now();
         lastFileModification=std::chrono::system_clock::time_point::min();
         Config& config=Config::getInstance();
@@ -19,8 +21,9 @@ namespace CalendarOverlay{
         setupSharedMemory();
     }
     EventManager::~EventManager(){
+        stopWatcher=true;
         if (fileWatcherThread){
-            TerminateThread(fileWatcherThread, 0);
+            WaitForSingleObject(fileWatcherThread, 5000);
             CloseHandle(fileWatcherThread);
         }
         if (sharedMemoryPtr){
@@ -54,64 +57,57 @@ namespace CalendarOverlay{
         if (!file.is_open()){
             return false;
         }
-        std::string jsonContent((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-        file.close();
-        return parseEventsJson(jsonContent);
+        try{
+            json j;
+            file>>j;
+            file.close();
+            return parseEventsJson(j);
+        }
+        catch (const std::exception& e){
+            std::cerr<<"Failed to parse JSON: "<<e.what()<<std::endl;
+            return false;
+        }
     }
-    bool EventManager::parseEventsJson(const std::string& json){
+    bool EventManager::parseEventsJson(const json& j){
         std::lock_guard<std::mutex> lock(eventsMutex);
         events.clear();
-        size_t eventsPos=json.find("\"events\"");
-        if (eventsPos==std::string::npos){
+        if (!j.contains("events")||!j["events"].is_array()){
             return false;
         }
-        size_t arrayStart=json.find('[', eventsPos);
-        if (arrayStart==std::string::npos){
-            return false;
-        }
-        size_t arrayEnd=json.find(']', arrayStart);
-        if (arrayEnd==std::string::npos){
-            return false;
-        }
-        std::string eventsArray=json.substr(arrayStart+1, arrayEnd-arrayStart-1);
-        size_t pos=0;
         int eventCount=0;
-        while (pos<eventsArray.length()){
-            size_t objStart=eventsArray.find('{', pos);
-            if (objStart==std::string::npos){
-                break;
-            }
-            size_t objEnd=eventsArray.find('}', objStart);
-            if (objEnd==std::string::npos){
-                break;
-            }
-            std::string eventObj=eventsArray.substr(objStart+1, objEnd-objStart-1);
+        for (const auto& eventJson : j["events"]){
             CalendarEvent event;
-            size_t titlePos=eventObj.find("\"title\"");
-            if (titlePos!=std::string::npos){
-                size_t colonPos=eventObj.find(':', titlePos);
-                size_t quote1=eventObj.find('"', colonPos);
-                if (quote1!=std::string::npos){
-                    size_t quote2=eventObj.find('"', quote1+1);
-                    if (quote2!=std::string::npos){
-                        std::string title=eventObj.substr(quote1+1, quote2-quote1-1);
-                        strncpy_s(event.title, sizeof(event.title), title.c_str(), _TRUNCATE);
-                    }
-                }
+            if (eventJson.contains("title")&&eventJson["title"].is_string()){
+                std::string title=eventJson["title"];
+                strncpy_s(event.title, sizeof(event.title), title.c_str(), _TRUNCATE);
             }
-            size_t timePos=eventObj.find("\"startTime\"");
-            if (timePos!=std::string::npos){
-                size_t colonPos=eventObj.find(':', timePos);
-                size_t valueStart=eventObj.find_first_of("0123456789", colonPos);
-                if (valueStart!=std::string::npos){
-                    size_t valueEnd=eventObj.find_first_not_of("0123456789", valueStart);
-                    std::string timeStr=eventObj.substr(valueStart, valueEnd-valueStart);
-                    event.startTime=std::stoll(timeStr);
-                }
+            if (eventJson.contains("description")&&eventJson["description"].is_string()){
+                std::string desc=eventJson["description"];
+                strncpy_s(event.description, sizeof(event.description), desc.c_str(), _TRUNCATE);
+            }
+            if (eventJson.contains("startTime")&&eventJson["startTime"].is_number()){
+                event.startTime=eventJson["startTime"];
+            }
+            if (eventJson.contains("endTime")&&eventJson["endTime"].is_number()){
+                event.endTime=eventJson["endTime"];
+            }
+            if (eventJson.contains("colorR")&&eventJson["colorR"].is_number()){
+                event.colorR=eventJson["colorR"];
+            }
+            if (eventJson.contains("colorG")&&eventJson["colorG"].is_number()){
+                event.colorG=eventJson["colorG"];
+            }
+            if (eventJson.contains("colorB")&&eventJson["colorB"].is_number()){
+                event.colorB=eventJson["colorB"];
+            }
+            if (eventJson.contains("priority")&&eventJson["priority"].is_number()){
+                event.priority=eventJson["priority"];
+            }
+            if (eventJson.contains("allDay")&&eventJson["allDay"].is_boolean()){
+                event.allDay=eventJson["allDay"];
             }
             events.push_back(event);
             eventCount++;
-            pos=objEnd+1;
         }
         std::cout<<"Loaded "<<eventCount<<" events"<<std::endl;
         return eventCount>0;
@@ -119,19 +115,9 @@ namespace CalendarOverlay{
     DWORD WINAPI EventManager::fileWatcherProc(LPVOID param){
         EventManager* manager=static_cast<EventManager*>(param);
         if (!manager) return 0;
-        std::string pathToWatch=manager->dataFilePath;
-        while (true){
+        while (!manager->stopWatcher){
             Sleep(5000);
-            struct _stat fileStat;
-            if (_stat(pathToWatch.c_str(), &fileStat)==0){
-                auto modTime=std::chrono::system_clock::from_time_t(fileStat.st_mtime);
-                if (modTime>manager->lastFileModification){
-                    manager->loadEventsFromFile(pathToWatch);
-                    manager->lastFileModification=modTime;
-                }
-            }
-            if (WaitForSingleObject(GetCurrentThread(), 0)==WAIT_OBJECT_0)
-                break;
+            manager->checkFileUpdates();
         }
         return 0;
     }

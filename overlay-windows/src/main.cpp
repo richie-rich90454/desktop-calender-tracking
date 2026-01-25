@@ -4,6 +4,8 @@
 #include <thread>
 #include <atomic>
 #include <shellapi.h>
+#include <vector>
+#include <string>
 
 namespace CalendarOverlay{
     std::atomic<bool> running(true);

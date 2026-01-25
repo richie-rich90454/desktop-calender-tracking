@@ -6,6 +6,7 @@
 #include <mutex>
 #include <windows.h>
 #include <shared/calendar_shared.h>
+#include <json/json.hpp>
 namespace CalendarOverlay{
     class EventManager{
     public:
@@ -19,7 +20,7 @@ namespace CalendarOverlay{
         int getEventCount() const;
         bool loadEventsFromFile(const std::string& filepath);
     private:
-        bool parseEventsJson(const std::string& json);
+        bool parseEventsJson(const nlohmann::json& j);
         void checkFileUpdates();
         std::vector<CalendarEvent> events;
         mutable std::mutex eventsMutex;
@@ -29,10 +30,10 @@ namespace CalendarOverlay{
         bool initialized;
         HANDLE fileWatcherThread;
         static DWORD WINAPI fileWatcherProc(LPVOID param);
-        void watchForChanges();
         HANDLE sharedMemory;
         void* sharedMemoryPtr;
         size_t sharedMemorySize;
         bool setupSharedMemory();
+        bool stopWatcher;
     };
 }
