@@ -5,7 +5,7 @@
 #include <chrono>
 #include <mutex>
 #include <windows.h>
-#include "shared/calendar_shared.h"
+#include <shared/calendar_shared.h>
 namespace CalendarOverlay{
     class EventManager{
     public:

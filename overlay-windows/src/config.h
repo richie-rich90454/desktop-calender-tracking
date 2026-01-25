@@ -1,7 +1,7 @@
 #pragma once
 #include <windows.h>
 #include <string>
-#include "shared/calendar_shared.h"
+#include <shared/calendar_shared.h>
 
 namespace CalendarOverlay{
     class Config{

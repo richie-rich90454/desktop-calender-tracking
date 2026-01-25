@@ -173,17 +173,3 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     LocalFree(argv);
     return 0;
 }
-int main(int argc, char* argv[]){
-    auto cmdArgs=CalendarOverlay::parseCommandLine(argc, argv);
-    if (cmdArgs.help){
-        CalendarOverlay::printHelp();
-        return 0;
-    }
-    if (cmdArgs.silent){
-        CalendarOverlay::runAsService();
-    }
-    else{
-        CalendarOverlay::runWithGUI(true);
-    }
-    return 0;
-}

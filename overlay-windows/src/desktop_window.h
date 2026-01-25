@@ -16,7 +16,7 @@
 #include <shellapi.h>
 #include <string>
 #include <memory>
-#include "shared/calendar_shared.h"
+#include <shared/calendar_shared.h>
 
 namespace CalendarOverlay{
     class CalendarRenderer;

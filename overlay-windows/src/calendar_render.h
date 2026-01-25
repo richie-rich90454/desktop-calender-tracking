@@ -4,7 +4,7 @@
 #include <dwrite.h>
 #include <vector>
 #include <memory>
-#include "shared/calendar_shared.h"
+#include <shared/calendar_shared.h>
 #pragma comment(lib, "d2d1.lib")
 #pragma comment(lib, "dwrite.lib")
 
