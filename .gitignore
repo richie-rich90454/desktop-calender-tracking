@@ -276,3 +276,6 @@ calendar.json
 tasks.json
 steps.txt
 icon.png
+.vscode/launch.json
+.vscode/c_cpp_properties.json
+.vscode/settings.json
