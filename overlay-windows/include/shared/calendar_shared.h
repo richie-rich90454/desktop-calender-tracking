@@ -37,6 +37,7 @@ namespace CalendarOverlay{
         int fontSize;
         uint32_t backgroundColor;
         uint32_t textColor;
+        bool clickThrough;
         OverlayConfig(){
             enabled=true;
             positionX=100;
@@ -50,6 +51,7 @@ namespace CalendarOverlay{
             fontSize=14;
             backgroundColor=0x20000000;
             textColor=0xFFFFFFFF;
+            clickThrough=false;
         }
     };
     #pragma pack(pop)

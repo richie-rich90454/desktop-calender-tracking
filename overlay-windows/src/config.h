@@ -1,48 +1,30 @@
 #pragma once
-#include <string>
 #include <windows.h>
+#include <string>
 #include "shared/calendar_shared.h"
 
 namespace CalendarOverlay{
     class Config{
-    public:
-        static Config& getInstance(){
-            static Config instance;
-            return instance;
-        }
-        bool load();
-        bool save();
-        void setDefaults();
-        OverlayConfig& getConfig(){
-            return config;
-        }
-        std::string getDataPath() const{
-            return dataPath;
-        }
-        std::string getConfigPath() const{
-            return configPath;
-        }
-        void setPosition(int x, int y){
-            config.positionX=x;
-            config.positionY=y;
-        }
-        void setSize(int w, int h){
-            config.width=w;
-            config.height=h;
-        }
-        void setOpacity(float opacity){
-            config.opacity=opacity;
-        }
     private:
-        Config();
-        ~Config()=default;
-        Config(const Config&)=delete;
-        Config& operator=(const Config&)=delete;
-        void createDefaultConfig();
-        std::string getAppDataPath();
-        OverlayConfig config;
+        CRITICAL_SECTION cs;
         std::string dataPath;
         std::string configPath;
-        CRITICAL_SECTION cs;
+        OverlayConfig config;
+        void createDefaultConfig();
+        void setDefaults();
+    public:
+        static Config& getInstance();
+        Config();
+        ~Config();
+        bool load();
+        bool save();
+        OverlayConfig getConfig() const{
+            return config;
+        }
+        void setClickThrough(bool enabled);
+        void setPosition(int x, int y);
+        void setSize(int width, int height);
+        void setOpacity(float opacity);
+        void save(const OverlayConfig& newConfig);
     };
 }

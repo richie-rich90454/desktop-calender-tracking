@@ -23,6 +23,13 @@ namespace CalendarOverlay{
             CreateDirectoryA("data", NULL);
         }
     }
+    Config::~Config(){
+        DeleteCriticalSection(&cs);
+    }
+    Config& Config::getInstance(){
+        static Config instance;
+        return instance;
+    }
     bool Config::load(){
         EnterCriticalSection(&cs);
         std::ifstream file(configPath);
@@ -102,6 +109,9 @@ namespace CalendarOverlay{
                                 else if (key=="textColor"){
                                     config.textColor=std::stoul(valueStr, nullptr, 16);
                                 }
+                                else if (key=="clickThrough"){
+                                    config.clickThrough=(valueStr=="true");
+                                }
                             }
                         }
                     }
@@ -131,11 +141,36 @@ namespace CalendarOverlay{
         file<<"  \"refreshInterval\": "<<config.refreshInterval<<",\n";
         file<<"  \"fontSize\": "<<config.fontSize<<",\n";
         file<<"  \"backgroundColor\": \""<<std::hex<<std::setw(8)<<std::setfill('0')<<config.backgroundColor<<"\",\n";
-        file<<"  \"textColor\": \""<<std::hex<<std::setw(8)<<std::setfill('0')<<config.textColor<<"\"\n";
+        file<<"  \"textColor\": \""<<std::hex<<std::setw(8)<<std::setfill('0')<<config.textColor<<"\",\n";
+        file<<"  \"clickThrough\": "<<(config.clickThrough?"true":"false")<<"\n";
         file<<"}\n";
         file.close();
         LeaveCriticalSection(&cs);
         return true;
+    }
+    void Config::save(const OverlayConfig& newConfig){
+        EnterCriticalSection(&cs);
+        config = newConfig;
+        std::ofstream file(configPath);
+        if (file.is_open()){
+            file<<"{\n";
+            file<<"  \"enabled\": "<<(config.enabled?"true":"false")<<",\n";
+            file<<"  \"positionX\": "<<config.positionX<<",\n";
+            file<<"  \"positionY\": "<<config.positionY<<",\n";
+            file<<"  \"width\": "<<config.width<<",\n";
+            file<<"  \"height\": "<<config.height<<",\n";
+            file<<"  \"opacity\": "<<std::fixed<<std::setprecision(2)<<config.opacity<<",\n";
+            file<<"  \"showPastEvents\": "<<(config.showPastEvents?"true":"false")<<",\n";
+            file<<"  \"showAllDay\": "<<(config.showAllDay?"true":"false")<<",\n";
+            file<<"  \"refreshInterval\": "<<config.refreshInterval<<",\n";
+            file<<"  \"fontSize\": "<<config.fontSize<<",\n";
+            file<<"  \"backgroundColor\": \""<<std::hex<<std::setw(8)<<std::setfill('0')<<config.backgroundColor<<"\",\n";
+            file<<"  \"textColor\": \""<<std::hex<<std::setw(8)<<std::setfill('0')<<config.textColor<<"\",\n";
+            file<<"  \"clickThrough\": "<<(config.clickThrough?"true":"false")<<"\n";
+            file<<"}\n";
+            file.close();
+        }
+        LeaveCriticalSection(&cs);
     }
     void Config::createDefaultConfig(){
         setDefaults();
@@ -143,5 +178,27 @@ namespace CalendarOverlay{
     }
     void Config::setDefaults(){
         config=OverlayConfig();
+    }
+    void Config::setClickThrough(bool enabled){
+        EnterCriticalSection(&cs);
+        config.clickThrough=enabled;
+        LeaveCriticalSection(&cs);
+    }
+    void Config::setPosition(int x, int y){
+        EnterCriticalSection(&cs);
+        config.positionX=x;
+        config.positionY=y;
+        LeaveCriticalSection(&cs);
+    }
+    void Config::setSize(int width, int height){
+        EnterCriticalSection(&cs);
+        config.width=width;
+        config.height=height;
+        LeaveCriticalSection(&cs);
+    }
+    void Config::setOpacity(float opacity){
+        EnterCriticalSection(&cs);
+        config.opacity=opacity;
+        LeaveCriticalSection(&cs);
     }
 }
