@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <sys/stat.h>
 #include <windows.h>
+#include <shlobj.h>
 #include <json/json.hpp>
 
 using json=nlohmann::json;
@@ -16,8 +17,17 @@ namespace CalendarOverlay{
         sharedMemory(NULL), sharedMemoryPtr(nullptr), stopWatcher(false){
         lastUpdate=std::chrono::system_clock::now();
         lastFileModification=std::chrono::system_clock::time_point::min();
-        Config& config=Config::getInstance();
-        dataFilePath=config.getDataPath()+"calendar_events.json";
+        
+        // Get the user's home directory
+        char userProfile[MAX_PATH];
+        if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_PROFILE, NULL, 0, userProfile))) {
+            dataFilePath = std::string(userProfile) + "\\.calendarapp\\calendar_events.json";
+        } else {
+            // Fallback to config path if can't get user profile
+            Config& config=Config::getInstance();
+            dataFilePath=config.getDataPath()+"calendar_events.json";
+        }
+        
         setupSharedMemory();
     }
     EventManager::~EventManager(){
