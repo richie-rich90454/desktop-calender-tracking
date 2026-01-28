@@ -56,6 +56,7 @@ namespace CalendarOverlay{
         void onMouseDown(int x, int y);
         void onMouseUp(int x, int y);
         void onKeyDown(WPARAM key);
+        void onCommand(WPARAM wParam);
         void createTrayIcon();
         void removeTrayIcon();
         void showContextMenu(int x, int y);
@@ -78,5 +79,10 @@ namespace CalendarOverlay{
         bool clickThrough;
         bool wallpaperMode;
         bool fullScreenWallpaper;
+        UINT_PTR desktopCheckTimer;
+        HWND lastActiveWindow;
+        bool isOnDesktop;
+        bool checkIfOnDesktop();
+        void updateWindowVisibilityBasedOnDesktop();
     };
 }

@@ -31,9 +31,25 @@ namespace CalendarOverlay{
             return false;
         }
         if (writeFactory){
-            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, config.fontSize, L"en-us", &textFormat);
-            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, config.fontSize+2, L"en-us", &titleFormat); 
-            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_ITALIC, DWRITE_FONT_STRETCH_NORMAL, config.fontSize-2, L"en-us", &timeFormat);
+            // Use modern font with better rendering
+            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_SEMI_LIGHT, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, config.fontSize, L"en-us", &textFormat);
+            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_SEMI_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, config.fontSize+3, L"en-us", &titleFormat); 
+            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_LIGHT, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, config.fontSize-1, L"en-us", &timeFormat);
+            
+            // Enable better text rendering
+            if (textFormat) {
+                textFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+                textFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+                textFormat->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+            }
+            if (titleFormat) {
+                titleFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+                titleFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+            }
+            if (timeFormat) {
+                timeFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+                timeFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+            }
         }
         return createDeviceResources();
     }

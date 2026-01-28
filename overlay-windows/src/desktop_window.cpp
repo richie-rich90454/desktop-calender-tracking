@@ -24,7 +24,7 @@
 #include <sstream>
 #pragma comment(lib, "comctl32.lib")
 namespace CalendarOverlay{
-    DesktopWindow::DesktopWindow() : hwnd(NULL), hInstance(GetModuleHandle(NULL)), visible(false), dragging(false), dragStartX(0), dragStartY(0), windowX(100), windowY(100), windowWidth(400), windowHeight(600), renderTimer(0), updateTimer(0), trayIconVisible(false), alpha(255), clickThrough(false), wallpaperMode(false), fullScreenWallpaper(false){
+    DesktopWindow::DesktopWindow() : hwnd(NULL), hInstance(GetModuleHandle(NULL)), visible(false), dragging(false), dragStartX(0), dragStartY(0), windowX(100), windowY(100), windowWidth(400), windowHeight(600), renderTimer(0), updateTimer(0), trayIconVisible(false), alpha(255), clickThrough(false), wallpaperMode(false), fullScreenWallpaper(false), desktopCheckTimer(0), lastActiveWindow(NULL), isOnDesktop(true){
         className=L"CalendarOverlayWindow";
         Config& cfg=Config::getInstance();
         cfg.load();
@@ -113,6 +113,7 @@ namespace CalendarOverlay{
         renderer->setEvents(eventManager->getTodayEvents());
         renderTimer=SetTimer(hwnd, 1, 16, NULL);
         updateTimer=SetTimer(hwnd, 2, config.refreshInterval*1000, NULL);
+        desktopCheckTimer = SetTimer(hwnd, 3, 500, NULL);
         createTrayIcon();
         return true;
     }
@@ -225,6 +226,16 @@ namespace CalendarOverlay{
                 case WM_KEYDOWN:
                     window->onKeyDown(wParam);
                     break;
+                case WM_COMMAND:
+                    window->onCommand(wParam);
+                    break;
+                case WM_APP+1:
+                    if (lParam == WM_RBUTTONUP || lParam == WM_CONTEXTMENU) {
+                        POINT pt;
+                        GetCursorPos(&pt);
+                        window->showContextMenu(pt.x, pt.y);
+                    }
+                    break;
                 case WM_DESTROY:
                     PostQuitMessage(0);
                     break;
@@ -244,6 +255,10 @@ namespace CalendarOverlay{
     void DesktopWindow::onTimer(){
         static int updateCounter=0;
         render();
+        
+        // Check desktop visibility
+        updateWindowVisibilityBasedOnDesktop();
+        
         if (++updateCounter>=30){
             update();
             updateCounter=0;
@@ -292,6 +307,22 @@ namespace CalendarOverlay{
         }
         else if (key==VK_F5){
             update();
+        }
+    }
+    
+    void DesktopWindow::onCommand(WPARAM wParam) {
+        switch (LOWORD(wParam)) {
+            case 1001: // Show/Hide
+                if (visible) {
+                    hide();
+                } else {
+                    show();
+                }
+                break;
+            case 1002: // Exit
+                close();
+                PostQuitMessage(0);
+                break;
         }
     }
     void DesktopWindow::createTrayIcon(){
@@ -427,6 +458,41 @@ namespace CalendarOverlay{
         }
         else{
             std::cerr<<"Failed to launch Java application. Error: "<<GetLastError()<<std::endl;
+        }
+    }
+    bool DesktopWindow::checkIfOnDesktop() {
+        HWND foregroundWindow = GetForegroundWindow();
+        if (!foregroundWindow) {
+            return true;
+        }
+        char className[256];
+        GetClassNameA(foregroundWindow, className, sizeof(className));
+        if (strcmp(className, "Progman") == 0 || 
+            strcmp(className, "WorkerW") == 0 ||
+            strcmp(className, "Shell_TrayWnd") == 0 ||
+            strcmp(className, "Button") == 0) {
+            return true;
+        }
+        if (IsIconic(foregroundWindow) || !IsWindowVisible(foregroundWindow)) {
+            return true;
+        }
+        if (foregroundWindow == hwnd) {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    void DesktopWindow::updateWindowVisibilityBasedOnDesktop() {
+        bool currentlyOnDesktop = checkIfOnDesktop();
+        
+        if (currentlyOnDesktop != isOnDesktop) {
+            isOnDesktop = currentlyOnDesktop;
+            if (isOnDesktop) {
+                show();
+            } else {
+                hide();
+            }
         }
     }
 }
