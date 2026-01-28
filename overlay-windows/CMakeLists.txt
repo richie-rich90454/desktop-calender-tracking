@@ -54,6 +54,11 @@ target_include_directories(CalendarOverlay PRIVATE
 )
 
 # --------------------
+# Wallpaper mode option
+# --------------------
+option(WALLPAPER_MODE "Enable wallpaper mode (full-screen overlay behind windows)" ON)
+
+# --------------------
 # Windows compile definitions
 # --------------------
 target_compile_definitions(CalendarOverlay PRIVATE
@@ -62,6 +67,7 @@ target_compile_definitions(CalendarOverlay PRIVATE
     _WIN32_WINNT=0x0A00  # Windows 10/11 (was 0x0601 for Win7)
     UNICODE
     _UNICODE
+    $<$<BOOL:${WALLPAPER_MODE}>:WALLPAPER_MODE>
 )
 
 # --------------------

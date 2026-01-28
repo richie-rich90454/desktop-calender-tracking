@@ -39,6 +39,7 @@ namespace CalendarOverlay{
         void drawCurrentTime();
         void drawDateHeader();
         void drawEvent(const CalendarEvent& event, float yPos);
+        void drawWallpaperContent();
         D2D1_COLOR_F toColorF(uint32_t color) const;
         D2D1::ColorF toColorF(uint8_t r, uint8_t g, uint8_t b, float a=1.0f) const;
         std::vector<CalendarEvent> getUpcomingEvents(int hours) const;

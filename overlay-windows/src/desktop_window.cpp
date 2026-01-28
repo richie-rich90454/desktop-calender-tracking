@@ -20,17 +20,69 @@
 #include <iostream>
 #include <memory>
 #include <vector>
+#include <string>
+#include <sstream>
 #pragma comment(lib, "comctl32.lib")
 namespace CalendarOverlay{
-    DesktopWindow::DesktopWindow() : hwnd(NULL), hInstance(GetModuleHandle(NULL)), visible(false), dragging(false), dragStartX(0), dragStartY(0), windowX(100), windowY(100), windowWidth(400), windowHeight(600), renderTimer(0), updateTimer(0), trayIconVisible(false), alpha(255), clickThrough(false){
+    DesktopWindow::DesktopWindow() : hwnd(NULL), hInstance(GetModuleHandle(NULL)), visible(false), dragging(false), dragStartX(0), dragStartY(0), windowX(100), windowY(100), windowWidth(400), windowHeight(600), renderTimer(0), updateTimer(0), trayIconVisible(false), alpha(255), clickThrough(false), wallpaperMode(false), fullScreenWallpaper(false){
         className=L"CalendarOverlayWindow";
         Config& cfg=Config::getInstance();
         cfg.load();
         this->config=cfg.getConfig();
-        windowX=config.positionX;
-        windowY=config.positionY;
-        windowWidth=config.width;
-        windowHeight=config.height;
+        #ifdef WALLPAPER_MODE
+        wallpaperMode=true;
+        #else
+        wallpaperMode=false;
+        #endif
+        int argc;
+        LPWSTR* argv=CommandLineToArgvW(GetCommandLineW(), &argc);
+        if (argv){
+            for (int i=1;i<argc;i++){
+                std::wstring arg=argv[i];
+                if (arg==L"--wallpaper"||arg==L"-w"){
+                    wallpaperMode=true;
+                }
+                else if (arg==L"--no-wallpaper"||arg==L"-nw"){
+                    wallpaperMode=false;
+                }
+                else if (arg==L"--position"&&i+1<argc){
+                    std::wstring pos=argv[++i];
+                    if (pos==L"top-right"||pos==L"tr"){
+                        config.position="top-right";
+                    }
+                    else if (pos==L"top-left"||pos==L"tl"){
+                        config.position="top-left";
+                    }
+                    else if (pos==L"bottom-right"||pos==L"br"){
+                        config.position="bottom-right";
+                    }
+                    else if (pos==L"bottom-left"||pos==L"bl"){
+                        config.position="bottom-left";
+                    }
+                }
+                else if (arg==L"--fullscreen"||arg==L"-f"){
+                    fullScreenWallpaper=true;
+                }
+            }
+            LocalFree(argv);
+        }
+        if (wallpaperMode){
+            RECT desktopRect;
+            GetWindowRect(GetDesktopWindow(), &desktopRect);
+            windowX=0;
+            windowY=0;
+            windowWidth=desktopRect.right;
+            windowHeight=desktopRect.bottom;
+            if (config.position.empty()){
+                config.position="top-right";
+            }
+        }
+        else{
+            windowX=config.positionX;
+            windowY=config.positionY;
+            windowWidth=config.width;
+            windowHeight=config.height;
+        }
         alpha=static_cast<BYTE>(config.opacity*255);
         clickThrough=config.clickThrough;
         renderer=std::make_unique<CalendarRenderer>();
@@ -74,8 +126,15 @@ namespace CalendarOverlay{
         return RegisterClassExW(&wc)!=0;
     }
     bool DesktopWindow::createWindowInstance(){
-        DWORD exStyle=WS_EX_TOPMOST|WS_EX_LAYERED|WS_EX_TOOLWINDOW|WS_EX_NOACTIVATE;
-        if (clickThrough) {
+        DWORD exStyle=WS_EX_LAYERED|WS_EX_TOOLWINDOW|WS_EX_NOACTIVATE;
+        if (wallpaperMode){
+            exStyle|=WS_EX_TOPMOST;
+            clickThrough=false;
+        }
+        else{
+            exStyle|=WS_EX_TOPMOST;
+        }
+        if (clickThrough){
             exStyle|=WS_EX_TRANSPARENT;
         }
         hwnd=CreateWindowExW(
@@ -89,6 +148,9 @@ namespace CalendarOverlay{
             return false;
         }
         SetLayeredWindowAttributes(hwnd, RGB(0, 0, 0), alpha, LWA_ALPHA|LWA_COLORKEY);
+        if (wallpaperMode){
+            SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_FRAMECHANGED);
+        }
         return true;
     }
     void DesktopWindow::show(){
@@ -199,6 +261,10 @@ namespace CalendarOverlay{
         }
     }
     void DesktopWindow::onMouseDown(int x, int y){
+        if (wallpaperMode){
+            launchJavaGUI();
+            return;
+        }
         dragging=true;
         POINT cursorPos;
         GetCursorPos(&cursorPos);
@@ -324,6 +390,38 @@ namespace CalendarOverlay{
             SetForegroundWindow(hwnd);
             TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, x, y, 0, hwnd, NULL);
             DestroyMenu(hMenu);
+        }
+    }
+    void DesktopWindow::launchJavaGUI(){
+        std::wstring javaPath=L"java";
+        std::wstring jarPath=L"CalendarApp.jar";
+        wchar_t exePath[MAX_PATH];
+        GetModuleFileNameW(NULL, exePath, MAX_PATH);
+        std::wstring exeDir=exePath;
+        size_t lastSlash=exeDir.find_last_of(L"\\/");
+        if (lastSlash != std::wstring::npos){
+            exeDir=exeDir.substr(0, lastSlash+1);
+            jarPath=exeDir+L"CalendarApp.jar";
+        }
+        DWORD fileAttrib=GetFileAttributesW(jarPath.c_str());
+        if (fileAttrib==INVALID_FILE_ATTRIBUTES||(fileAttrib & FILE_ATTRIBUTE_DIRECTORY)){
+            jarPath=L"..\\dist\\CalendarApp.jar";
+            fileAttrib=GetFileAttributesW(jarPath.c_str());
+            if (fileAttrib==INVALID_FILE_ATTRIBUTES||(fileAttrib & FILE_ATTRIBUTE_DIRECTORY)){
+                std::cerr<<"Java JAR not found. Please ensure CalendarApp.jar is in the same directory."<<std::endl;
+                return;
+            }
+        }
+        std::wstring command=L"\""+javaPath+L"\" -jar \""+jarPath+L"\"";
+        STARTUPINFOW si={sizeof(si)};
+        PROCESS_INFORMATION pi={0};
+        if (CreateProcessW(NULL, const_cast<LPWSTR>(command.c_str()), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)){
+            std::cout<<"Java calendar application launched successfully."<<std::endl;
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+        }
+        else{
+            std::cerr<<"Failed to launch Java application. Error: "<<GetLastError()<<std::endl;
         }
     }
 }

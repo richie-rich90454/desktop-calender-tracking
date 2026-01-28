@@ -38,6 +38,8 @@ namespace CalendarOverlay{
         uint32_t backgroundColor;
         uint32_t textColor;
         bool clickThrough;
+        std::string position;
+        bool wallpaperMode;
         OverlayConfig(){
             enabled=true;
             positionX=100;
@@ -52,6 +54,8 @@ namespace CalendarOverlay{
             backgroundColor=0x20000000;
             textColor=0xFFFFFFFF;
             clickThrough=false;
+            position="top-right";
+            wallpaperMode=false;
         }
     };
     #pragma pack(pop)

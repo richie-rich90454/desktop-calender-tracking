@@ -32,7 +32,7 @@ namespace CalendarOverlay{
         }
         if (writeFactory){
             writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, config.fontSize, L"en-us", &textFormat);
-            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, config.fontSize+2, L"en-us", &titleFormat);  
+            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, config.fontSize+2, L"en-us", &titleFormat); 
             writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_ITALIC, DWRITE_FONT_STRETCH_NORMAL, config.fontSize-2, L"en-us", &timeFormat);
         }
         return createDeviceResources();
@@ -89,10 +89,15 @@ namespace CalendarOverlay{
         renderTarget->BeginDraw();
         renderTarget->SetTransform(D2D1::Matrix3x2F::Identity());
         renderTarget->Clear(D2D1::ColorF(0, 0, 0, 0));
-        drawBackground();
-        drawDateHeader();
-        drawEvents();
-        drawCurrentTime();
+        if (config.wallpaperMode){
+            drawWallpaperContent();
+        }
+        else{
+            drawBackground();
+            drawDateHeader();
+            drawEvents();
+            drawCurrentTime();
+        }
         HRESULT hr=renderTarget->EndDraw();
         if (hr==D2DERR_RECREATE_TARGET){
             releaseDeviceResources();
@@ -181,6 +186,73 @@ namespace CalendarOverlay{
         wss<<std::put_time(&localTime, L"%I:%M:%S %p");
         D2D1_RECT_F textRect=D2D1::RectF(padding, renderSize.height-25.0f, renderSize.width-padding, renderSize.height-5.0f);
         renderTarget->DrawTextW(wss.str().c_str(), static_cast<UINT32>(wss.str().length()), timeFormat, textRect, textBrush);
+    }
+    void CalendarRenderer::drawWallpaperContent(){
+        if (!textBrush||!titleFormat||!textFormat||!timeFormat||!renderTarget){
+            return;
+        }
+        float contentWidth=350.0f;
+        float contentHeight=200.0f;
+        float cornerPadding=20.0f;
+        D2D1_RECT_F contentRect;
+        if (config.position=="top-left"){
+            contentRect=D2D1::RectF(cornerPadding, cornerPadding, cornerPadding+contentWidth, cornerPadding+contentHeight);
+        }
+        else if (config.position=="bottom-left"){
+            contentRect=D2D1::RectF(cornerPadding, renderSize.height-cornerPadding-contentHeight, cornerPadding+contentWidth, renderSize.height-cornerPadding);
+        }
+        else if (config.position=="bottom-right"){
+            contentRect=D2D1::RectF(renderSize.width-cornerPadding-contentWidth, renderSize.height-cornerPadding-contentHeight, renderSize.width-cornerPadding, renderSize.height-cornerPadding);
+        }
+        else{
+            contentRect=D2D1::RectF(renderSize.width-cornerPadding-contentWidth, cornerPadding, renderSize.width-cornerPadding, cornerPadding+contentHeight);
+        }
+        ID2D1SolidColorBrush* bgBrush;
+        renderTarget->CreateSolidColorBrush(D2D1::ColorF(0.1f, 0.1f, 0.1f, 0.7f), &bgBrush);
+        D2D1_ROUNDED_RECT bgRect=D2D1::RoundedRect(contentRect, 8.0f, 8.0f);
+        renderTarget->FillRoundedRectangle(bgRect, bgBrush);
+        bgBrush->Release();
+        auto now=std::chrono::system_clock::now();
+        auto nowTime=std::chrono::system_clock::to_time_t(now);
+        std::tm localTime;
+        localtime_s(&localTime, &nowTime);
+        std::wstringstream dateStream;
+        dateStream<<std::put_time(&localTime, L"%A, %B %d");
+        D2D1_RECT_F dateRect=D2D1::RectF(contentRect.left+10.0f, contentRect.top+10.0f, contentRect.right-10.0f, contentRect.top+35.0f);
+        renderTarget->DrawTextW(dateStream.str().c_str(), static_cast<UINT32>(dateStream.str().length()), titleFormat, dateRect, textBrush);
+        std::wstringstream timeStream;
+        timeStream<<std::put_time(&localTime, L"%I:%M %p");
+        D2D1_RECT_F timeRect=D2D1::RectF(contentRect.left+10.0f, contentRect.top+40.0f, contentRect.right-10.0f, contentRect.top+65.0f);
+        renderTarget->DrawTextW(timeStream.str().c_str(), static_cast<UINT32>(timeStream.str().length()), titleFormat, timeRect, textBrush);
+        float eventStartY=contentRect.top+80.0f;
+        float eventSpacing=25.0f;
+        auto upcomingEvents=getUpcomingEvents(12);
+        for (size_t i=0;i<std::min(upcomingEvents.size(), size_t(3));i++){
+            const auto& event=upcomingEvents[i];
+            auto eventTime=std::chrono::system_clock::from_time_t(event.startTime/1000);
+            auto eventTimeT=std::chrono::system_clock::to_time_t(eventTime);
+            std::tm eventTm;
+            localtime_s(&eventTm, &eventTimeT);
+            std::wstringstream eventTimeStream;
+            eventTimeStream<<std::put_time(&eventTm, L"%I:%M");
+            D2D1_RECT_F eventTimeRect=D2D1::RectF(contentRect.left+10.0f, eventStartY, contentRect.left+60.0f, eventStartY+20.0f);
+            renderTarget->DrawTextW(eventTimeStream.str().c_str(), static_cast<UINT32>(eventTimeStream.str().length()), timeFormat, eventTimeRect, textBrush);
+            std::wstring title;
+            for (int j=0;j<256&&event.title[j]!='\0';j++){
+                title+=static_cast<wchar_t>(event.title[j]);
+            }
+            if (title.length()>20){
+                title=title.substr(0, 17)+L"...";
+            }
+            D2D1_RECT_F eventTitleRect=D2D1::RectF(contentRect.left+65.0f, eventStartY, contentRect.right-10.0f, eventStartY+20.0f);
+            renderTarget->DrawTextW(title.c_str(), static_cast<UINT32>(title.length()), textFormat, eventTitleRect, textBrush);
+            eventStartY+=eventSpacing;
+        }
+        if (upcomingEvents.empty()){
+            std::wstring noEvents=L"No upcoming events";
+            D2D1_RECT_F noEventsRect=D2D1::RectF(contentRect.left+10.0f, eventStartY, contentRect.right-10.0f, eventStartY+20.0f);
+            renderTarget->DrawTextW(noEvents.c_str(), static_cast<UINT32>(noEvents.length()), textFormat, noEventsRect, textBrush);
+        }
     }
     void CalendarRenderer::setEvents(const std::vector<CalendarEvent>& newEvents){
         EnterCriticalSection(&cs);

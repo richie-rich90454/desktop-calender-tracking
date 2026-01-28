@@ -59,6 +59,7 @@ namespace CalendarOverlay{
         void createTrayIcon();
         void removeTrayIcon();
         void showContextMenu(int x, int y);
+        void launchJavaGUI();
         HWND hwnd;
         HINSTANCE hInstance;
         std::wstring className;
@@ -75,5 +76,7 @@ namespace CalendarOverlay{
         bool trayIconVisible;
         BYTE alpha;
         bool clickThrough;
+        bool wallpaperMode;
+        bool fullScreenWallpaper;
     };
 }
