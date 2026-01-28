@@ -191,22 +191,17 @@ namespace CalendarOverlay{
         if (!textBrush||!titleFormat||!textFormat||!timeFormat||!renderTarget){
             return;
         }
-        float contentWidth=350.0f;
-        float contentHeight=200.0f;
-        float cornerPadding=20.0f;
-        D2D1_RECT_F contentRect;
-        if (config.position=="top-left"){
-            contentRect=D2D1::RectF(cornerPadding, cornerPadding, cornerPadding+contentWidth, cornerPadding+contentHeight);
-        }
-        else if (config.position=="bottom-left"){
-            contentRect=D2D1::RectF(cornerPadding, renderSize.height-cornerPadding-contentHeight, cornerPadding+contentWidth, renderSize.height-cornerPadding);
-        }
-        else if (config.position=="bottom-right"){
-            contentRect=D2D1::RectF(renderSize.width-cornerPadding-contentWidth, renderSize.height-cornerPadding-contentHeight, renderSize.width-cornerPadding, renderSize.height-cornerPadding);
-        }
-        else{
-            contentRect=D2D1::RectF(renderSize.width-cornerPadding-contentWidth, cornerPadding, renderSize.width-cornerPadding, cornerPadding+contentHeight);
-        }
+        // Make overlay 1/4 of screen width, 1/3 of screen height, positioned top-right
+        float contentWidth = renderSize.width / 4.0f;
+        float contentHeight = renderSize.height / 3.0f;
+        float cornerPadding = 20.0f;
+        
+        D2D1_RECT_F contentRect = D2D1::RectF(
+            renderSize.width - contentWidth - cornerPadding,
+            cornerPadding,
+            renderSize.width - cornerPadding,
+            cornerPadding + contentHeight
+        );
         ID2D1SolidColorBrush* bgBrush;
         renderTarget->CreateSolidColorBrush(D2D1::ColorF(0.1f, 0.1f, 0.1f, 0.7f), &bgBrush);
         D2D1_ROUNDED_RECT bgRect=D2D1::RoundedRect(contentRect, 8.0f, 8.0f);
@@ -307,10 +302,12 @@ namespace CalendarOverlay{
         std::vector<CalendarEvent> upcoming;
         auto now=std::chrono::system_clock::now();
         auto nowMs=std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
-        auto cutoff=nowMs+(hours*3600*1000);
+        auto pastCutoff=nowMs-(12*3600*1000); // Show events from past 12 hours
+        auto futureCutoff=nowMs+(hours*3600*1000);
         EnterCriticalSection(&cs);
         for (const auto& event : events){
-            if (event.startTime>=nowMs&&event.startTime<=cutoff){
+            // Show events from past 12 hours and next specified hours
+            if (event.startTime>=pastCutoff&&event.startTime<=futureCutoff){
                 upcoming.push_back(event);
             }
         }

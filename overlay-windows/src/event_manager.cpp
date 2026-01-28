@@ -92,11 +92,13 @@ namespace CalendarOverlay{
             if (eventJson.contains("title")&&eventJson["title"].is_string()){
                 std::string title=eventJson["title"];
                 strncpy_s(event.title, sizeof(event.title), title.c_str(), _TRUNCATE);
+                std::cout<<"Parsing event: "<<title<<std::endl;
             }
             
             // Parse date and time from Java format
             if (eventJson.contains("startDateTime")&&eventJson["startDateTime"].is_string()){
                 std::string startDateTimeStr = eventJson["startDateTime"];
+                std::cout<<"Parsing startDateTime: "<<startDateTimeStr<<std::endl;
                 try {
                     // Parse ISO format: "2025-01-28T10:30:00"
                     std::tm tm = {};
@@ -106,8 +108,12 @@ namespace CalendarOverlay{
                         auto timePoint = std::chrono::system_clock::from_time_t(std::mktime(&tm));
                         auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(timePoint.time_since_epoch());
                         event.startTime = ms.count();
+                        std::cout<<"Parsed start time: "<<event.startTime<<" ms"<<std::endl;
+                    } else {
+                        std::cout<<"Failed to parse startDateTime with ISO format"<<std::endl;
                     }
-                } catch (...) {
+                } catch (const std::exception& e) {
+                    std::cout<<"Exception parsing startDateTime: "<<e.what()<<std::endl;
                     // Try alternative format
                     try {
                         std::tm tm = {};
@@ -117,8 +123,13 @@ namespace CalendarOverlay{
                             auto timePoint = std::chrono::system_clock::from_time_t(std::mktime(&tm));
                             auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(timePoint.time_since_epoch());
                             event.startTime = ms.count();
+                            std::cout<<"Parsed start time with alt format: "<<event.startTime<<" ms"<<std::endl;
+                        } else {
+                            std::cout<<"Failed to parse startDateTime with alt format"<<std::endl;
+                            event.startTime = 0;
                         }
-                    } catch (...) {
+                    } catch (const std::exception& e2) {
+                        std::cout<<"Exception parsing startDateTime alt format: "<<e2.what()<<std::endl;
                         event.startTime = 0;
                     }
                 }
@@ -126,6 +137,7 @@ namespace CalendarOverlay{
             
             if (eventJson.contains("endDateTime")&&eventJson["endDateTime"].is_string()){
                 std::string endDateTimeStr = eventJson["endDateTime"];
+                std::cout<<"Parsing endDateTime: "<<endDateTimeStr<<std::endl;
                 try {
                     std::tm tm = {};
                     std::istringstream ss(endDateTimeStr);
@@ -134,8 +146,11 @@ namespace CalendarOverlay{
                         auto timePoint = std::chrono::system_clock::from_time_t(std::mktime(&tm));
                         auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(timePoint.time_since_epoch());
                         event.endTime = ms.count();
+                        std::cout<<"Parsed end time: "<<event.endTime<<" ms"<<std::endl;
+                    } else {
+                        std::cout<<"Failed to parse endDateTime with ISO format"<<std::endl;
                     }
-                } catch (...) {
+                } catch (const std::exception& e) {
                     try {
                         std::tm tm = {};
                         std::istringstream ss(endDateTimeStr);
@@ -144,8 +159,13 @@ namespace CalendarOverlay{
                             auto timePoint = std::chrono::system_clock::from_time_t(std::mktime(&tm));
                             auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(timePoint.time_since_epoch());
                             event.endTime = ms.count();
+                            std::cout<<"Parsed end time with alt format: "<<event.endTime<<" ms"<<std::endl;
+                        } else {
+                            std::cout<<"Failed to parse endDateTime with alt format"<<std::endl;
+                            event.endTime = 0;
                         }
-                    } catch (...) {
+                    } catch (const std::exception& e2) {
+                        std::cout<<"Exception parsing endDateTime alt format: "<<e2.what()<<std::endl;
                         event.endTime = 0;
                     }
                 }
