@@ -69,10 +69,13 @@ namespace CalendarOverlay{
         if (wallpaperMode){
             RECT desktopRect;
             GetWindowRect(GetDesktopWindow(), &desktopRect);
-            windowX=0;
-            windowY=0;
-            windowWidth=desktopRect.right;
-            windowHeight=desktopRect.bottom;
+            
+            // Create window in top-right 1/4 of screen
+            windowWidth = desktopRect.right / 4;
+            windowHeight = desktopRect.bottom / 4;
+            windowX = desktopRect.right - windowWidth - 10; // 10px padding from right edge
+            windowY = 10; // 10px padding from top edge
+            
             if (config.position.empty()){
                 config.position="top-right";
             }
@@ -149,7 +152,9 @@ namespace CalendarOverlay{
         }
         SetLayeredWindowAttributes(hwnd, RGB(0, 0, 0), alpha, LWA_ALPHA|LWA_COLORKEY);
         if (wallpaperMode){
-            SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_FRAMECHANGED);
+            // For wallpaper mode, we want the window to be above wallpaper but below other windows
+            // Since it's now a small overlay, we can keep it as TOPMOST
+            SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_FRAMECHANGED);
         }
         return true;
     }

@@ -191,16 +191,14 @@ namespace CalendarOverlay{
         if (!textBrush||!titleFormat||!textFormat||!timeFormat||!renderTarget){
             return;
         }
-        // Make overlay 1/4 of screen width, 1/3 of screen height, positioned top-right
-        float contentWidth = renderSize.width / 4.0f;
-        float contentHeight = renderSize.height / 3.0f;
-        float cornerPadding = 20.0f;
-        
+        // The window is now already 1/4 of screen size in top-right corner
+        // Use the entire window area for content
+        float cornerPadding = 10.0f;
         D2D1_RECT_F contentRect = D2D1::RectF(
-            renderSize.width - contentWidth - cornerPadding,
+            cornerPadding,
             cornerPadding,
             renderSize.width - cornerPadding,
-            cornerPadding + contentHeight
+            renderSize.height - cornerPadding
         );
         ID2D1SolidColorBrush* bgBrush;
         renderTarget->CreateSolidColorBrush(D2D1::ColorF(0.1f, 0.1f, 0.1f, 0.7f), &bgBrush);
