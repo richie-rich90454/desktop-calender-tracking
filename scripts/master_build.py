@@ -398,14 +398,14 @@ class DesktopCalendarLauncher:
         if self.config.get("auto_start_java", False):
             self.start_java_gui()
             
-        print("\nApplications started. Press Ctrl+C to stop.")
+        print("\\nApplications started. Press Ctrl+C to stop.")
         
         try:
             # Keep the main thread alive
             while True:
                 time.sleep(1)
         except KeyboardInterrupt:
-            print("\nStopping applications...")
+            print("\\nStopping applications...")
             self.stop_all()
             
     def run(self):
@@ -518,7 +518,8 @@ For more information, see the main README.md file.
         
         print(f"✓ Distribution README created: {dist_readme}")
         print(f"\n✓ Distribution package created in: {self.dist_dir}")
-        print(f"  Total size: {sum(f.stat().st_size for f in self.dist_dir.rglob('*') if f.is_file()) / 1024:.1f} KB")
+        total_size = sum(f.stat().st_size for f in self.dist_dir.rglob('*') if f.is_file())
+        print(f"  Total size: {total_size / 1024:.1f} KB")
         
         return True
         
@@ -577,7 +578,7 @@ def main():
 Examples:
   python master_build.py              # Build everything
   python master_build.py --java-only  # Build only Java
-  python master_build.py --cpp-only   # Build only C++
+  python master_build.py --cpp-only   # Build only C++  
   python master_build.py --no-clean   # Incremental build
   python master_build.py --check-deps # Check dependencies only
         """
