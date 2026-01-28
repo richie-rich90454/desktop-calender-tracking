@@ -77,39 +77,81 @@ namespace CalendarOverlay{
         int eventCount=0;
         for (const auto& eventJson : j["events"]){
             CalendarEvent event;
+            
+            // Parse title
             if (eventJson.contains("title")&&eventJson["title"].is_string()){
                 std::string title=eventJson["title"];
                 strncpy_s(event.title, sizeof(event.title), title.c_str(), _TRUNCATE);
             }
-            if (eventJson.contains("description")&&eventJson["description"].is_string()){
-                std::string desc=eventJson["description"];
-                strncpy_s(event.description, sizeof(event.description), desc.c_str(), _TRUNCATE);
+            
+            // Parse date and time from Java format
+            if (eventJson.contains("startDateTime")&&eventJson["startDateTime"].is_string()){
+                std::string startDateTimeStr = eventJson["startDateTime"];
+                try {
+                    // Parse ISO format: "2025-01-28T10:30:00"
+                    std::tm tm = {};
+                    std::istringstream ss(startDateTimeStr);
+                    ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S");
+                    if (!ss.fail()) {
+                        auto timePoint = std::chrono::system_clock::from_time_t(std::mktime(&tm));
+                        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(timePoint.time_since_epoch());
+                        event.startTime = ms.count();
+                    }
+                } catch (...) {
+                    // Try alternative format
+                    try {
+                        std::tm tm = {};
+                        std::istringstream ss(startDateTimeStr);
+                        ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
+                        if (!ss.fail()) {
+                            auto timePoint = std::chrono::system_clock::from_time_t(std::mktime(&tm));
+                            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(timePoint.time_since_epoch());
+                            event.startTime = ms.count();
+                        }
+                    } catch (...) {
+                        event.startTime = 0;
+                    }
+                }
             }
-            if (eventJson.contains("startTime")&&eventJson["startTime"].is_number()){
-                event.startTime=eventJson["startTime"];
+            
+            if (eventJson.contains("endDateTime")&&eventJson["endDateTime"].is_string()){
+                std::string endDateTimeStr = eventJson["endDateTime"];
+                try {
+                    std::tm tm = {};
+                    std::istringstream ss(endDateTimeStr);
+                    ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S");
+                    if (!ss.fail()) {
+                        auto timePoint = std::chrono::system_clock::from_time_t(std::mktime(&tm));
+                        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(timePoint.time_since_epoch());
+                        event.endTime = ms.count();
+                    }
+                } catch (...) {
+                    try {
+                        std::tm tm = {};
+                        std::istringstream ss(endDateTimeStr);
+                        ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
+                        if (!ss.fail()) {
+                            auto timePoint = std::chrono::system_clock::from_time_t(std::mktime(&tm));
+                            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(timePoint.time_since_epoch());
+                            event.endTime = ms.count();
+                        }
+                    } catch (...) {
+                        event.endTime = 0;
+                    }
+                }
             }
-            if (eventJson.contains("endTime")&&eventJson["endTime"].is_number()){
-                event.endTime=eventJson["endTime"];
-            }
-            if (eventJson.contains("colorR")&&eventJson["colorR"].is_number()){
-                event.colorR=eventJson["colorR"];
-            }
-            if (eventJson.contains("colorG")&&eventJson["colorG"].is_number()){
-                event.colorG=eventJson["colorG"];
-            }
-            if (eventJson.contains("colorB")&&eventJson["colorB"].is_number()){
-                event.colorB=eventJson["colorB"];
-            }
-            if (eventJson.contains("priority")&&eventJson["priority"].is_number()){
-                event.priority=eventJson["priority"];
-            }
-            if (eventJson.contains("allDay")&&eventJson["allDay"].is_boolean()){
-                event.allDay=eventJson["allDay"];
-            }
+            
+            // Set default colors (blue)
+            event.colorR = 66;
+            event.colorG = 133;
+            event.colorB = 244;
+            event.priority = 5;
+            event.allDay = false;
+            
             events.push_back(event);
             eventCount++;
         }
-        std::cout<<"Loaded "<<eventCount<<" events"<<std::endl;
+        std::cout<<"Loaded "<<eventCount<<" events from Java JSON format"<<std::endl;
         return eventCount>0;
     }
     DWORD WINAPI EventManager::fileWatcherProc(LPVOID param){

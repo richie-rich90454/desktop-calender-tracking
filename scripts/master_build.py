@@ -122,7 +122,9 @@ class DesktopCalendarBuilder:
         if incremental:
             cmd.append("--incremental")
         else:
-            cmd.append("--clean")
+            # Don't use --clean flag as it only cleans without building
+            # The build-java.py script does a full build by default
+            pass
             
         try:
             print(f"Running: {' '.join(cmd)}")
@@ -367,7 +369,7 @@ class DesktopCalendarLauncher:
             try:
                 self.cpp_process.terminate()
                 self.cpp_process.wait(timeout=5)
-                print("✓ C++ overlay stopped")
+                print("C++ overlay stopped")
             except:
                 try:
                     self.cpp_process.kill()
@@ -378,7 +380,7 @@ class DesktopCalendarLauncher:
             try:
                 self.java_process.terminate()
                 self.java_process.wait(timeout=5)
-                print("✓ Java application stopped")
+                print("Java application stopped")
             except:
                 try:
                     self.java_process.kill()
