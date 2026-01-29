@@ -95,6 +95,7 @@ target_link_libraries(CalendarOverlay PRIVATE
     d2d1
     dwrite
     windowscodecs
+    msimg32  # For AlphaBlend function
     # Add these commonly needed libs:
     advapi32
     uuid

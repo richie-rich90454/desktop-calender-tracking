@@ -12,12 +12,62 @@ namespace CalendarOverlay{
         textBrush(nullptr), backgroundBrush(nullptr), eventBrush(nullptr), 
         writeFactory(nullptr), textFormat(nullptr), titleFormat(nullptr), 
         timeFormat(nullptr), hwnd(NULL), padding(10.0f), eventHeight(40.0f), 
-        timeWidth(80.0f), lastRenderTime(0), framesRendered(0){
+        timeWidth(80.0f), lastRenderTime(0), framesRendered(0),
+        currentDPI(96), dpiScale(1.0f) {
         InitializeCriticalSection(&cs);
     }
     CalendarRenderer::~CalendarRenderer(){
         cleanup();
         DeleteCriticalSection(&cs);
+    }
+    bool CalendarRenderer::initialize(HWND window, UINT dpi){
+        currentDPI=dpi;
+        dpiScale=dpi/96.0f;
+        return initialize(window);
+    }
+    void CalendarRenderer::onDPIChanged(UINT newDPI) {
+        EnterCriticalSection(&cs);
+        currentDPI = newDPI;
+        dpiScale = newDPI / 96.0f;
+        
+        // Update fonts for new DPI
+        updateFontsForDPI();
+        
+        // Force recreation of device resources
+        if (renderTarget) {
+            releaseDeviceResources();
+            createDeviceResources();
+        }
+        LeaveCriticalSection(&cs);
+    }
+    void CalendarRenderer::updateFontsForDPI() {
+        if (writeFactory) {
+            if (textFormat) textFormat->Release();
+            if (titleFormat) titleFormat->Release();
+            if (timeFormat) timeFormat->Release();
+            
+            float baseFontSize = 12.0f;
+            writeFactory->CreateTextFormat(
+                L"Segoe UI", NULL, 
+                DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, 
+                DWRITE_FONT_STRETCH_NORMAL, 
+                baseFontSize * dpiScale, 
+                L"en-us", &textFormat);
+                
+            writeFactory->CreateTextFormat(
+                L"Segoe UI", NULL, 
+                DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, 
+                DWRITE_FONT_STRETCH_NORMAL, 
+                (baseFontSize + 4) * dpiScale, 
+                L"en-us", &titleFormat);
+                
+            writeFactory->CreateTextFormat(
+                L"Segoe UI", NULL, 
+                DWRITE_FONT_WEIGHT_LIGHT, DWRITE_FONT_STYLE_ITALIC, 
+                DWRITE_FONT_STRETCH_NORMAL, 
+                (baseFontSize - 2) * dpiScale, 
+                L"en-us", &timeFormat);
+        }
     }
     bool CalendarRenderer::initialize(HWND window){
         hwnd=window;
@@ -31,10 +81,11 @@ namespace CalendarOverlay{
             return false;
         }
         if (writeFactory){
-            // Use modern font with better rendering
-            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_SEMI_LIGHT, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, config.fontSize, L"en-us", &textFormat);
-            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_SEMI_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, config.fontSize+3, L"en-us", &titleFormat); 
-            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_LIGHT, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, config.fontSize-1, L"en-us", &timeFormat);
+            // Use DPI-scaled font sizes
+            float scaledFontSize = config.fontSize * dpiScale;
+            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_SEMI_LIGHT, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, scaledFontSize, L"en-us", &textFormat);
+            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_SEMI_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, scaledFontSize + 3 * dpiScale, L"en-us", &titleFormat); 
+            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_LIGHT, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, scaledFontSize - 1 * dpiScale, L"en-us", &timeFormat);
             
             // Enable better text rendering
             if (textFormat) {
@@ -209,8 +260,8 @@ namespace CalendarOverlay{
         }
         // The window is now already 1/4 of screen size in top-right corner
         // Use the entire window area for content
-        float cornerPadding = 10.0f;
-        D2D1_RECT_F contentRect = D2D1::RectF(
+        float cornerPadding=10.0f;
+        D2D1_RECT_F contentRect=D2D1::RectF(
             cornerPadding,
             cornerPadding,
             renderSize.width - cornerPadding,
@@ -285,9 +336,10 @@ namespace CalendarOverlay{
             if (timeFormat){
                 timeFormat->Release();
             }
-            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, config.fontSize, L"en-us", &textFormat);
-            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, config.fontSize+2, L"en-us", &titleFormat);
-            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_ITALIC, DWRITE_FONT_STRETCH_NORMAL, config.fontSize-2, L"en-us", &timeFormat);
+            float scaledFontSize = config.fontSize * dpiScale;
+            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, scaledFontSize, L"en-us", &textFormat);
+            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, scaledFontSize + 2 * dpiScale, L"en-us", &titleFormat);
+            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_ITALIC, DWRITE_FONT_STRETCH_NORMAL, scaledFontSize - 2 * dpiScale, L"en-us", &timeFormat);
         }
         LeaveCriticalSection(&cs);
     }

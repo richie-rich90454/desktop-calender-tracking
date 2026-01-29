@@ -1,10 +1,16 @@
 #pragma once
 
+// Windows headers must be included first with proper defines
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
+
+// Set Windows version before including Windows headers
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0A00  // Windows 10
 #endif
 
 #include <windows.h>
@@ -14,6 +20,10 @@
 #include <dwrite.h>
 #include <vector>
 #include <memory>
+namespace CalendarOverlay{
+    struct CalendarEvent;
+    struct OverlayConfig;
+}
 #include <shared/calendar_shared.h>
 #pragma comment(lib, "d2d1.lib")
 #pragma comment(lib, "dwrite.lib")
@@ -24,6 +34,7 @@ namespace CalendarOverlay{
         CalendarRenderer();
         ~CalendarRenderer();
         bool initialize(HWND hwnd);
+        bool initialize(HWND hwnd, UINT dpi);
         void resize(int width, int height);
         void render();
         void cleanup();
@@ -31,6 +42,7 @@ namespace CalendarOverlay{
         void setConfig(const OverlayConfig& newConfig);
         void setOpacity(float opacity);
         void setPosition(int x, int y);
+        void onDPIChanged(UINT newDPI);
     private:
         bool createDeviceResources();
         void releaseDeviceResources();
@@ -43,6 +55,7 @@ namespace CalendarOverlay{
         D2D1_COLOR_F toColorF(uint32_t color) const;
         D2D1::ColorF toColorF(uint8_t r, uint8_t g, uint8_t b, float a=1.0f) const;
         std::vector<CalendarEvent> getUpcomingEvents(int hours) const;
+        void updateFontsForDPI();
         HWND hwnd;
         ID2D1Factory* d2dFactory;
         ID2D1HwndRenderTarget* renderTarget;
@@ -58,5 +71,7 @@ namespace CalendarOverlay{
         mutable CRITICAL_SECTION cs;
         ULONGLONG lastRenderTime;
         int framesRendered;
+        UINT currentDPI;
+        float dpiScale;
     };
 }
