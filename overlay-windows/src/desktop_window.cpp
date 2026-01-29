@@ -208,6 +208,9 @@ namespace CalendarOverlay {
         updateTimer = SetTimer(hwnd, 2, config.refreshInterval * 1000, NULL);
         desktopCheckTimer = SetTimer(hwnd, 3, 500, NULL);
         
+        // Add timer for wallpaper color detection (every 5 seconds)
+        SetTimer(hwnd, 4, 5000, NULL);
+        
         createTrayIcon();
         return true;
     }
@@ -460,6 +463,7 @@ namespace CalendarOverlay {
     
     void DesktopWindow::onTimer() {
         static int updateCounter = 0;
+        static int colorDetectionCounter = 0;
         
         // Force repaint
         if (visible && hwnd) {
@@ -473,6 +477,14 @@ namespace CalendarOverlay {
         if (++updateCounter >= 30) {
             update();
             updateCounter = 0;
+        }
+        
+        // Update colors based on wallpaper (every 5 seconds when auto mode is enabled)
+        if (++colorDetectionCounter >= 100) { // 100 * 16ms = 1.6 seconds, ~3 times in 5 seconds
+            if (renderer && config.autoColorMode) {
+                renderer->updateColorsBasedOnWallpaper();
+            }
+            colorDetectionCounter = 0;
         }
     }
     

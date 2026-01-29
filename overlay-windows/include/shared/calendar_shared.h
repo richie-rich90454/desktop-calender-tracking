@@ -40,6 +40,13 @@ namespace CalendarOverlay{
         bool clickThrough;
         std::string position;
         bool wallpaperMode;
+        // Dark/Light mode optimization
+        bool autoColorMode;      // true = automatic, false = manual
+        bool darkMode;           // true = dark mode, false = light mode (when autoColorMode is false)
+        uint32_t darkBackgroundColor;
+        uint32_t darkTextColor;
+        uint32_t lightBackgroundColor;
+        uint32_t lightTextColor;
         OverlayConfig(){
             enabled=true;
             positionX=100;
@@ -56,6 +63,13 @@ namespace CalendarOverlay{
             clickThrough=false;
             position="top-right";
             wallpaperMode=false;
+            // Dark/Light mode defaults
+            autoColorMode = true;  // Automatic by default
+            darkMode = false;      // Light mode by default when manual
+            darkBackgroundColor = 0x20000000;  // Semi-transparent black
+            darkTextColor = 0xFFFFFFFF;        // White text
+            lightBackgroundColor = 0x80FFFFFF; // Semi-transparent white
+            lightTextColor = 0xFF000000;       // Black text
         }
     };
     #pragma pack(pop)
