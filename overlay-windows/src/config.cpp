@@ -112,24 +112,6 @@ namespace CalendarOverlay{
                                 else if (key=="clickThrough"){
                                     config.clickThrough=(valueStr=="true");
                                 }
-                                else if (key=="autoColorMode"){
-                                    config.autoColorMode=(valueStr=="true");
-                                }
-                                else if (key=="darkMode"){
-                                    config.darkMode=(valueStr=="true");
-                                }
-                                else if (key=="darkBackgroundColor"){
-                                    config.darkBackgroundColor=std::stoul(valueStr, nullptr, 16);
-                                }
-                                else if (key=="darkTextColor"){
-                                    config.darkTextColor=std::stoul(valueStr, nullptr, 16);
-                                }
-                                else if (key=="lightBackgroundColor"){
-                                    config.lightBackgroundColor=std::stoul(valueStr, nullptr, 16);
-                                }
-                                else if (key=="lightTextColor"){
-                                    config.lightTextColor=std::stoul(valueStr, nullptr, 16);
-                                }
                             }
                         }
                     }
@@ -160,13 +142,7 @@ namespace CalendarOverlay{
         file<<"  \"fontSize\": "<<config.fontSize<<",\n";
         file<<"  \"backgroundColor\": \""<<std::hex<<std::setw(8)<<std::setfill('0')<<config.backgroundColor<<"\",\n";
         file<<"  \"textColor\": \""<<std::hex<<std::setw(8)<<std::setfill('0')<<config.textColor<<"\",\n";
-        file<<"  \"clickThrough\": "<<(config.clickThrough?"true":"false")<<",\n";
-        file<<"  \"autoColorMode\": "<<(config.autoColorMode?"true":"false")<<",\n";
-        file<<"  \"darkMode\": "<<(config.darkMode?"true":"false")<<",\n";
-        file<<"  \"darkBackgroundColor\": \""<<std::hex<<std::setw(8)<<std::setfill('0')<<config.darkBackgroundColor<<"\",\n";
-        file<<"  \"darkTextColor\": \""<<std::hex<<std::setw(8)<<std::setfill('0')<<config.darkTextColor<<"\",\n";
-        file<<"  \"lightBackgroundColor\": \""<<std::hex<<std::setw(8)<<std::setfill('0')<<config.lightBackgroundColor<<"\",\n";
-        file<<"  \"lightTextColor\": \""<<std::hex<<std::setw(8)<<std::setfill('0')<<config.lightTextColor<<"\"\n";
+        file<<"  \"clickThrough\": "<<(config.clickThrough?"true":"false")<<"\n";
         file<<"}\n";
         file.close();
         LeaveCriticalSection(&cs);
@@ -190,13 +166,7 @@ namespace CalendarOverlay{
             file<<"  \"fontSize\": "<<config.fontSize<<",\n";
             file<<"  \"backgroundColor\": \""<<std::hex<<std::setw(8)<<std::setfill('0')<<config.backgroundColor<<"\",\n";
             file<<"  \"textColor\": \""<<std::hex<<std::setw(8)<<std::setfill('0')<<config.textColor<<"\",\n";
-            file<<"  \"clickThrough\": "<<(config.clickThrough?"true":"false")<<",\n";
-            file<<"  \"autoColorMode\": "<<(config.autoColorMode?"true":"false")<<",\n";
-            file<<"  \"darkMode\": "<<(config.darkMode?"true":"false")<<",\n";
-            file<<"  \"darkBackgroundColor\": \""<<std::hex<<std::setw(8)<<std::setfill('0')<<config.darkBackgroundColor<<"\",\n";
-            file<<"  \"darkTextColor\": \""<<std::hex<<std::setw(8)<<std::setfill('0')<<config.darkTextColor<<"\",\n";
-            file<<"  \"lightBackgroundColor\": \""<<std::hex<<std::setw(8)<<std::setfill('0')<<config.lightBackgroundColor<<"\",\n";
-            file<<"  \"lightTextColor\": \""<<std::hex<<std::setw(8)<<std::setfill('0')<<config.lightTextColor<<"\"\n";
+            file<<"  \"clickThrough\": "<<(config.clickThrough?"true":"false")<<"\n";
             file<<"}\n";
             file.close();
         }
