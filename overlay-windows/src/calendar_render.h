@@ -43,12 +43,6 @@ namespace CalendarOverlay{
         void setOpacity(float opacity);
         void setPosition(int x, int y);
         void onDPIChanged(UINT newDPI);
-        // Dark/Light mode optimization
-        void detectWallpaperColors();
-        void updateColorsBasedOnWallpaper();
-        float calculateBrightness(uint8_t r, uint8_t g, uint8_t b) const;
-        float calculateContrast(uint32_t color1, uint32_t color2) const;
-        uint32_t getOptimalTextColor(uint32_t backgroundColor) const;
     private:
         bool createDeviceResources();
         void releaseDeviceResources();
@@ -62,9 +56,6 @@ namespace CalendarOverlay{
         D2D1::ColorF toColorF(uint8_t r, uint8_t g, uint8_t b, float a=1.0f) const;
         std::vector<CalendarEvent> getUpcomingEvents(int hours) const;
         void updateFontsForDPI();
-        // Wallpaper color sampling
-        bool sampleWallpaperColors(std::vector<uint32_t>& samples) const;
-        uint32_t calculateAverageColor(const std::vector<uint32_t>& samples) const;
         HWND hwnd;
         ID2D1Factory* d2dFactory;
         ID2D1HwndRenderTarget* renderTarget;
