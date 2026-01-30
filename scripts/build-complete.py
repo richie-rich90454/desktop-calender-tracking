@@ -957,6 +957,7 @@ exe = EXE(
             pyinstaller_args = [
                 '--onefile',
                 '--name=DesktopCalendar',
+                '--distpath', str(self.dist_dir),
                 '--add-data', f'{self.dist_dir / "CalendarApp.jar"};.',
                 '--add-data', f'{self.dist_dir / "CalendarWallpaper.exe"};.',
                 '--add-data', f'{self.dist_dir / "desktop_calendar_config.json"};.',
@@ -985,7 +986,7 @@ exe = EXE(
             built_exe = self.project_root / "dist" / "DesktopCalendar.exe"
             if built_exe.exists():
                 final_exe = self.dist_dir / "DesktopCalendar.exe"
-                shutil.copy2(built_exe, final_exe)
+                if built_exe.resolve() != final_exe.resolve(): shutil.copy2(built_exe, final_exe)
                 
                 exe_size = final_exe.stat().st_size / (1024 * 1024)  # MB
                 print(f"[OK] Standalone executable created: {final_exe} ({exe_size:.2f} MB)")
