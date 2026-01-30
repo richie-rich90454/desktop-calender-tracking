@@ -523,8 +523,7 @@ For more information, see the main README.md file.
         print(f"  Total size: {total_size / 1024:.1f} KB")
         
         return True
-        
-    def build_all(self, clean=True, wallpaper_mode=True):
+    def build_all(self, clean=True, wallpaper_mode=True, standalone=False):
         """Build everything: Java, C++, and create distribution"""
         self.print_header("Building Complete Desktop Calendar System")
         
@@ -554,22 +553,477 @@ For more information, see the main README.md file.
             print("⚠ Failed to create distribution package")
             success = False
         
+        # Create standalone executable if requested
+        if standalone and self.is_windows:
+            if not self.create_standalone_exe():
+                print("⚠ Failed to create standalone executable")
+                success = False
+        
         if success:
             self.print_header("BUILD SUCCESSFUL")
             print(f"Distribution ready in: {self.dist_dir}")
-            print("\nTo run the application:")
-            print(f"  cd {self.dist_dir}")
-            print("  python launcher.py")
-            print("\nOr with options:")
-            print("  python launcher.py --no-cpp    # Start only Java app")
-            print("  python launcher.py --no-java   # Start only C++ overlay")
+            
+            if standalone and self.is_windows:
+                standalone_exe = self.dist_dir / "DesktopCalendar.exe"
+                if standalone_exe.exists():
+                    print(f"\nStandalone executable: {standalone_exe}")
+                    print("This single EXE contains everything and doesn't require Python!")
+            else:
+                print("\nTo run the application:")
+                print(f"  cd {self.dist_dir}")
+                print("  python launcher.py")
+                print("\nOr with options:")
+                print("  python launcher.py --no-cpp    # Start only Java app")
+                print("  python launcher.py --no-java   # Start only C++ overlay")
         else:
             self.print_header("BUILD PARTIALLY SUCCESSFUL")
             print("Some components failed to build, but distribution was created.")
             print(f"Check {self.dist_dir} for available components.")
         
         return success
+    def create_standalone_exe(self):
+        """Create a standalone executable that includes all dependencies"""
+        self.print_header("Creating Standalone Executable")
+        
+        if not self.is_windows:
+            print("Standalone executable is currently only supported on Windows.")
+            return False
+        
+        # Check if PyInstaller is installed
+        try:
+            import PyInstaller
+        except ImportError:
+            print("Installing PyInstaller...")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "pyinstaller"])
+        
+        # Create a temporary directory for PyInstaller
+        temp_dir = self.dist_dir / "standalone_build"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create a main script for the standalone exe
+        main_script = temp_dir / "desktop_calendar_main.py"
+        
+        # Create a comprehensive main script that handles everything - without Unicode check marks
+        main_script_content = '''#!/usr/bin/env python3
+"""
+Desktop Calendar Tracking - Standalone Application
+Combines Java GUI and C++ overlay in a single executable
+"""
 
+import os
+import sys
+import subprocess
+import threading
+import json
+import tempfile
+import shutil
+import atexit
+import time
+from pathlib import Path
+
+# Get the temporary directory for extracted files
+if getattr(sys, 'frozen', False):
+    # Running as PyInstaller bundle
+    base_path = sys._MEIPASS
+else:
+    # Running as normal Python script
+    base_path = os.path.dirname(os.path.abspath(__file__))
+
+class DesktopCalendarStandalone:
+    def __init__(self):
+        self.extracted_dir = None
+        self.java_process = None
+        self.cpp_process = None
+        self.config = None
+        self.setup_extracted_files()
+        self.load_config()
+        
+    def setup_extracted_files(self):
+        """Extract embedded binaries to temp directory"""
+        # Create temporary directory for extracted files
+        self.extracted_dir = Path(tempfile.mkdtemp(prefix="desktop_calendar_"))
+        print(f"Extracting files to: {self.extracted_dir}")
+        
+        # Files that should be extracted from the bundle
+        required_files = [
+            "CalendarApp.jar",
+            "CalendarWallpaper.exe",
+            "desktop_calendar_config.json",
+            "README.md",
+            "LICENSE"
+        ]
+        
+        # Extract files from bundle
+        for file_name in required_files:
+            try:
+                # Try to get from PyInstaller bundle first
+                if getattr(sys, 'frozen', False):
+                    src_path = Path(base_path) / file_name
+                else:
+                    src_path = Path(__file__).parent / file_name
+                
+                if src_path.exists():
+                    dst_path = self.extracted_dir / file_name
+                    shutil.copy2(src_path, dst_path)
+                    print(f"  Extracted: {file_name}")
+            except Exception as e:
+                print(f"  Warning: Could not extract {file_name}: {e}")
+        
+        # Register cleanup function
+        atexit.register(self.cleanup)
+        
+    def cleanup(self):
+        """Clean up extracted files"""
+        if self.extracted_dir and self.extracted_dir.exists():
+            try:
+                # Terminate processes first
+                self.stop_all()
+                
+                # Wait a moment
+                time.sleep(1)
+                
+                # Remove directory
+                shutil.rmtree(self.extracted_dir, ignore_errors=True)
+                print(f"Cleaned up temporary files: {self.extracted_dir}")
+            except:
+                pass
+                
+    def load_config(self):
+        """Load configuration"""
+        default_config = {
+            "java_jar": "CalendarApp.jar",
+            "cpp_exe": "CalendarWallpaper.exe",
+            "cpp_args": ["--wallpaper", "--position", "top-right", "--fullscreen"],
+            "auto_start_java": False,
+            "auto_start_cpp": True,
+            "wallpaper_mode": True
+        }
+        
+        config_path = self.extracted_dir / "desktop_calendar_config.json"
+        
+        if config_path.exists():
+            try:
+                with open(config_path, 'r') as f:
+                    loaded_config = json.load(f)
+                    self.config = {**default_config, **loaded_config}
+            except:
+                self.config = default_config
+        else:
+            self.config = default_config
+            
+    def start_java_gui(self):
+        """Launch Java calendar application"""
+        jar_path = self.extracted_dir / self.config["java_jar"]
+        
+        if not jar_path.exists():
+            print(f"Error: Java JAR not found at {jar_path}")
+            return False
+            
+        try:
+            print(f"Starting Java application...")
+            self.java_process = subprocess.Popen(
+                ["java", "-jar", str(jar_path)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+                cwd=self.extracted_dir
+            )
+            
+            # Monitor output in background
+            threading.Thread(target=self.monitor_java_output, daemon=True).start()
+            print("[OK] Java application started")
+            return True
+            
+        except Exception as e:
+            print(f"Failed to start Java application: {e}")
+            return False
+            
+    def monitor_java_output(self):
+        """Monitor Java process output"""
+        if self.java_process:
+            try:
+                for line in iter(self.java_process.stdout.readline, b''):
+                    if line:
+                        print(f"[Java] {line.decode('utf-8', errors='ignore').strip()}")
+            except:
+                pass
+                
+    def start_cpp_overlay(self):
+        """Launch C++ wallpaper overlay"""
+        exe_path = self.extracted_dir / self.config["cpp_exe"]
+        
+        if not exe_path.exists():
+            print(f"Error: C++ executable not found at {exe_path}")
+            return False
+            
+        try:
+            args = [str(exe_path)] + self.config["cpp_args"]
+            print(f"Starting C++ overlay...")
+            
+            self.cpp_process = subprocess.Popen(
+                args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+                cwd=self.extracted_dir
+            )
+            
+            # Monitor output in background
+            threading.Thread(target=self.monitor_cpp_output, daemon=True).start()
+            print("[OK] C++ overlay started")
+            return True
+            
+        except Exception as e:
+            print(f"Failed to start C++ overlay: {e}")
+            return False
+            
+    def monitor_cpp_output(self):
+        """Monitor C++ process output"""
+        if self.cpp_process:
+            try:
+                for line in iter(self.cpp_process.stdout.readline, b''):
+                    if line:
+                        print(f"[C++] {line.decode('utf-8', errors='ignore').strip()}")
+            except:
+                pass
+                
+    def stop_all(self):
+        """Stop all running processes"""
+        print("Stopping applications...")
+        
+        if self.cpp_process:
+            try:
+                self.cpp_process.terminate()
+                self.cpp_process.wait(timeout=2)
+                print("[OK] C++ overlay stopped")
+            except:
+                try:
+                    self.cpp_process.kill()
+                except:
+                    pass
+                    
+        if self.java_process:
+            try:
+                self.java_process.terminate()
+                self.java_process.wait(timeout=2)
+                print("[OK] Java application stopped")
+            except:
+                try:
+                    self.java_process.kill()
+                except:
+                    pass
+                    
+    def run(self):
+        """Main entry point"""
+        print("Desktop Calendar - Standalone Application")
+        print("=" * 50)
+        print(f"Extracted to: {self.extracted_dir}")
+        print()
+        
+        # Start applications based on config
+        if self.config.get("auto_start_cpp", True):
+            self.start_cpp_overlay()
+            
+        if self.config.get("auto_start_java", False):
+            self.start_java_gui()
+            
+        if not self.config.get("auto_start_cpp", True) and not self.config.get("auto_start_java", False):
+            print("No applications configured to auto-start.")
+            print("Edit desktop_calendar_config.json to change auto-start settings.")
+            
+        print()
+        print("Applications are running in the background.")
+        print("Press Ctrl+C to stop all applications and exit.")
+        print()
+        
+        try:
+            # Keep running until interrupted
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print()
+            self.stop_all()
+            print("Application stopped.")
+
+def main():
+    """Main function"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Desktop Calendar Standalone Application")
+    parser.add_argument("--no-cpp", action="store_true", help="Don't start C++ overlay")
+    parser.add_argument("--no-java", action="store_true", help="Don't start Java app")
+    parser.add_argument("--config", help="Path to custom config file")
+    
+    args = parser.parse_args()
+    
+    # Create and run application
+    app = DesktopCalendarStandalone()
+    
+    # Override config based on command line
+    if args.no_cpp:
+        app.config["auto_start_cpp"] = False
+    if args.no_java:
+        app.config["auto_start_java"] = False
+        
+    # Load custom config if specified
+    if args.config:
+        try:
+            with open(args.config, 'r') as f:
+                custom_config = json.load(f)
+                app.config.update(custom_config)
+        except Exception as e:
+            print(f"Error loading custom config: {e}")
+    
+    app.run()
+
+if __name__ == "__main__":
+    main()
+'''
+        
+        # Write the main script with UTF-8 encoding
+        try:
+            with open(main_script, 'w', encoding='utf-8') as f:
+                f.write(main_script_content)
+        except UnicodeEncodeError:
+            # Fallback: write without encoding specification
+            with open(main_script, 'w') as f:
+                f.write(main_script_content.replace('✓', '[OK]'))
+        
+        # Collect all files from dist directory
+        data_files = []
+        for file_path in self.dist_dir.iterdir():
+            if file_path.is_file():
+                data_files.append((str(file_path), '.'))
+        
+        # Create PyInstaller spec file
+        spec_content = f'''
+# -*- mode: python ; coding: utf-8 -*-
+
+block_cipher = None
+
+a = Analysis(
+    ['{main_script}'],
+    pathex=[],
+    binaries=[],
+    datas={data_files},
+    hiddenimports=[],
+    hookspath=[],
+    hooksconfig={{}},
+    runtime_hooks=[],
+    excludes=[],
+    noarchive=False,
+    optimize=0,
+)
+
+pyz = PYZ(a.pure)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    [],
+    name='DesktopCalendar',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=True,  # Set to False to hide console window
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon=['{self.project_root / "scripts" / "calendar.ico"}' if (self.project_root / "scripts" / "calendar.ico").exists() else None],
+)
+'''
+        
+        spec_file = temp_dir / "desktop_calendar.spec"
+        try:
+            with open(spec_file, 'w', encoding='utf-8') as f:
+                f.write(spec_content)
+        except UnicodeEncodeError:
+            with open(spec_file, 'w') as f:
+                f.write(spec_content)
+        
+        try:
+            # Run PyInstaller
+            import PyInstaller.__main__
+            
+            print("Building standalone executable with PyInstaller...")
+            
+            pyinstaller_args = [
+                '--onefile',
+                '--name=DesktopCalendar',
+                '--add-data', f'{self.dist_dir / "CalendarApp.jar"};.',
+                '--add-data', f'{self.dist_dir / "CalendarWallpaper.exe"};.',
+                '--add-data', f'{self.dist_dir / "desktop_calendar_config.json"};.',
+                '--add-data', f'{self.dist_dir / "README_DIST.txt"};.' if (self.dist_dir / "README_DIST.txt").exists() else '',
+                '--console',  # Use --windowed to hide console
+                '--clean',
+                '--noconfirm',
+            ]
+            
+            # Add icon if available
+            icon_path = self.project_root / "scripts" / "calendar.ico"
+            if icon_path.exists():
+                pyinstaller_args.extend(['--icon', str(icon_path)])
+            
+            pyinstaller_args.append(str(main_script))
+            
+            # Filter out empty strings
+            pyinstaller_args = [arg for arg in pyinstaller_args if arg]
+            
+            print(f"Running PyInstaller with args: {pyinstaller_args}")
+            
+            # Run PyInstaller
+            PyInstaller.__main__.run(pyinstaller_args)
+            
+            # Find and copy the built executable
+            built_exe = self.project_root / "dist" / "DesktopCalendar.exe"
+            if built_exe.exists():
+                final_exe = self.dist_dir / "DesktopCalendar.exe"
+                shutil.copy2(built_exe, final_exe)
+                
+                exe_size = final_exe.stat().st_size / (1024 * 1024)  # MB
+                print(f"[OK] Standalone executable created: {final_exe} ({exe_size:.2f} MB)")
+                
+                # Clean up PyInstaller build directories
+                for dir_to_clean in ['build', 'dist']:
+                    cleanup_dir = self.project_root / dir_to_clean
+                    if cleanup_dir.exists() and cleanup_dir != self.dist_dir:
+                        shutil.rmtree(cleanup_dir, ignore_errors=True)
+                
+                # Clean up temp dir
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                
+                print(f"\n[OK] Standalone executable is ready!")
+                print(f"  Location: {final_exe}")
+                print(f"\nYou can now distribute DesktopCalendar.exe as a single file.")
+                print(f"It includes Java JAR, C++ executable, and all configuration.")
+                print(f"\nUsage: DesktopCalendar.exe [--no-cpp] [--no-java]")
+                
+                return True
+            else:
+                print(f"[ERROR] PyInstaller did not create the expected executable")
+                print(f"Expected at: {built_exe}")
+                # Check for other possible locations
+                for possible_exe in self.project_root.rglob("DesktopCalendar.exe"):
+                    print(f"Found at: {possible_exe}")
+                    final_exe = self.dist_dir / "DesktopCalendar.exe"
+                    shutil.copy2(possible_exe, final_exe)
+                    print(f"Copied to: {final_exe}")
+                    return True
+                    
+                return False
+                
+        except Exception as e:
+            print(f"Failed to create standalone executable: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
 def main():
     """Main entry point for master build script"""
     parser = argparse.ArgumentParser(
@@ -577,11 +1031,12 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python master_build.py              # Build everything
-  python master_build.py --java-only  # Build only Java
-  python master_build.py --cpp-only   # Build only C++  
-  python master_build.py --no-clean   # Incremental build
-  python master_build.py --check-deps # Check dependencies only
+  python build-complete.py              # Build everything
+  python build-complete.py --standalone # Build standalone executable
+  python build-complete.py --java-only  # Build only Java
+  python build-complete.py --cpp-only   # Build only C++  
+  python build-complete.py --no-clean   # Incremental build
+  python build-complete.py --check-deps # Check dependencies only
         """
     )
     
@@ -591,6 +1046,7 @@ Examples:
     parser.add_argument("--check-deps", action="store_true", help="Check dependencies only")
     parser.add_argument("--no-wallpaper", action="store_true", help="Disable wallpaper mode for C++ build")
     parser.add_argument("--create-dist", action="store_true", help="Create distribution package only")
+    parser.add_argument("--standalone", action="store_true", help="Create standalone executable (Windows only)")
     
     args = parser.parse_args()
     
@@ -608,10 +1064,16 @@ Examples:
         builder.create_distribution()
         return 0
     
+    if args.standalone and not builder.is_windows:
+        print("Standalone executable is only supported on Windows.")
+        return 1
+    
     if args.java_only:
         success = builder.build_java(clean=clean)
     elif args.cpp_only:
         success = builder.build_cpp(clean=clean, wallpaper_mode=wallpaper_mode)
+    elif args.standalone:
+        success = builder.build_all(clean=clean, wallpaper_mode=wallpaper_mode, standalone=True)
     else:
         success = builder.build_all(clean=clean, wallpaper_mode=wallpaper_mode)
     
