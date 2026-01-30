@@ -180,7 +180,8 @@ class DesktopCalendarBuilder:
                 encoding='utf-8',
                 errors='ignore',
                 shell=True,
-                cwd=self.project_root
+                cwd=self.project_root,
+                stdin=subprocess.DEVNULL
             )
             
             # Print output
