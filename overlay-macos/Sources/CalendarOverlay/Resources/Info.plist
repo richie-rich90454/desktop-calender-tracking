@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+    Info.plist - Application configuration for macOS Calendar Overlay
+    
+    This file contains the application configuration for the macOS Calendar Overlay.
+    It's the macOS equivalent of Windows manifest/application settings.
+    
+    KEY PROPERTIES:
+    - CFBundleIdentifier: Unique identifier for the app (reverse DNS format)
+    - CFBundleName: Display name of the application
+    - CFBundleDisplayName: Localized display name
+    - CFBundleVersion: Build version number
+    - CFBundleShortVersionString: Marketing version number
+    - LSMinimumSystemVersion: Minimum macOS version required
+    - LSUIElement: Run as agent (no dock icon, runs in background)
+    - NSPrincipalClass: Main application class
+    
+    WINDOWS EQUIVALENT: Application manifest, version resources, etc.
+    
+    IMPORTANT FOR OVERLAY APPLICATIONS:
+    - LSUIElement: YES - Makes app run as agent (no dock icon)
+    - LSBackgroundOnly: NO - App can have UI but runs in background
+    - NSHighResolutionCapable: YES - Support Retina displays
+    - NSAppTransportSecurity: Allow arbitrary loads for local files
+    -->
+    
+    <!-- Basic Application Information -->
+    <key>CFBundleIdentifier</key>
+    <string>com.yourcompany.CalendarOverlay</string>
+    
+    <key>CFBundleName</key>
+    <string>CalendarOverlay</string>
+    
+    <key>CFBundleDisplayName</key>
+    <string>Calendar Overlay</string>
+    
+    <key>CFBundleExecutable</key>
+    <string>CalendarOverlay</string>
+    
+    <!-- Version Information -->
+    <key>CFBundleVersion</key>
+    <string>1.0.0</string>
+    
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    
+    <!-- macOS Version Requirements -->
+    <key>LSMinimumSystemVersion</key>
+    <string>10.14</string> <!-- macOS Mojave (10.14) minimum -->
+    
+    <!-- Application Behavior -->
+    <key>LSUIElement</key>
+    <true/> <!-- Run as agent (no dock icon) -->
+    
+    <key>LSBackgroundOnly</key>
+    <false/> <!-- Not background-only (has UI) -->
+    
+    <!-- High Resolution Display Support -->
+    <key>NSHighResolutionCapable</key>
+    <true/> <!-- Support Retina displays -->
+    
+    <!-- Security Settings -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <true/> <!-- Allow loading local files -->
+    </dict>
+    
+    <!-- Application Category -->
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.productivity</string>
+    
+    <!-- Document Types (if needed) -->
+    <!--
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>json</string>
+            </array>
+            <key>CFBundleTypeName</key>
+            <string>Calendar Events</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>public.json</string>
+            </array>
+        </dict>
+    </array>
+    -->
+    
+    <!-- URL Schemes (if needed for inter-app communication) -->
+    <!--
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>Calendar Overlay URL</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>calendaroverlay</string>
+            </array>
+        </dict>
+    </array>
+    -->
+    
+    <!-- Privacy Permissions (if needed) -->
+    <!--
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>Calendar Overlay needs access to display events on your desktop</string>
+    
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>Calendar Overlay needs access to read calendar events from your documents</string>
+    -->
+    
+    <!-- Sandbox Settings (if sandboxed) -->
+    <!--
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+    
+    <key>com.apple.security.files.user-selected.read-only</key>
+    <true/>
+    
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+    
+    <key>com.apple.security.network.client</key>
+    <true/>
+    -->
+    
+    <!-- Copyright Information -->
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2025 Your Company. All rights reserved.</string>
+    
+    <!-- Application Icon (optional - would need Assets.xcassets) -->
+    <!--
+    <key>CFBundleIconFile</key>
+    <string>AppIcon.icns</string>
+    
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
+    -->
+    
+    <!-- Main Nib/Storyboard (not needed for programmatic apps) -->
+    <!--
+    <key>NSMainNibFile</key>
+    <string>MainMenu</string>
+    
+    <key>NSMainStoryboardFile</key>
+    <string>Main</string>
+    -->
+    
+    <!-- Principal Class (for Swift apps) -->
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    
+    <!-- Supported Interface Orientations (macOS doesn't use this like iOS) -->
+    
+    <!-- Background Modes (if needed) -->
+    <!--
+    <key>LSBackgroundOnly</key>
+    <false/>
+    -->
+    
+    <!-- Default Configuration (can be overridden by command line) -->
+    <key>DefaultConfiguration</key>
+    <dict>
+        <key>Enabled</key>
+        <true/>
+        <key>Opacity</key>
+        <real>0.85</real>
+        <key>RefreshInterval</key>
+        <integer>30</integer>
+    </dict>
+    
+</dict>
+</plist>
