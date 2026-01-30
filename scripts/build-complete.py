@@ -961,7 +961,7 @@ exe = EXE(
                 '--add-data', f'{self.dist_dir / "CalendarWallpaper.exe"};.',
                 '--add-data', f'{self.dist_dir / "desktop_calendar_config.json"};.',
                 '--add-data', f'{self.dist_dir / "README_DIST.txt"};.' if (self.dist_dir / "README_DIST.txt").exists() else '',
-                '--console',  # Use --windowed to hide console
+                '--windowed',  # Use --windowed to hide console
                 '--clean',
                 '--noconfirm',
             ]
