@@ -48,6 +48,7 @@ namespace CalendarOverlay{
         void handleMouseMove(int x, int y);
         void handleMouseUp(int x, int y);
         void resetScroll();
+        bool isScrollingActive() const;
     private:
         bool createDeviceResources();
         void releaseDeviceResources();

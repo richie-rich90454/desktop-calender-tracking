@@ -253,21 +253,23 @@ namespace CalendarOverlay{
         }
         
         // Draw only visible events
+        float visibleTop = padding + 50.0f;
+        float visibleBottom = renderSize.height - padding - 25.0f;
+        
         for (const auto& event : upcomingEvents) {
-            if (currentY + eventHeight > renderSize.height - padding - 25.0f) {
-                // Event is below visible area
-                break;
-            }
+            float eventTop = currentY;
+            float eventBottom = currentY + eventHeight;
             
-            if (currentY + eventHeight > padding + 50.0f) {
+            // Check if event intersects visible area
+            if (eventBottom > visibleTop && eventTop < visibleBottom) {
                 // Event is at least partially visible
                 drawEvent(event, currentY);
             }
             
             currentY += eventHeight + 5.0f;
             
-            if (currentY > renderSize.height - padding - 25.0f) {
-                // No more space for events
+            // Stop if we're past the visible area
+            if (currentY > visibleBottom) {
                 break;
             }
         }
@@ -644,5 +646,12 @@ namespace CalendarOverlay{
         EnterCriticalSection(&cs);
         scrollOffset = 0;
         LeaveCriticalSection(&cs);
+    }
+    
+    bool CalendarRenderer::isScrollingActive() const {
+        EnterCriticalSection(&cs);
+        bool scrolling = isScrolling;
+        LeaveCriticalSection(&cs);
+        return scrolling;
     }
 }

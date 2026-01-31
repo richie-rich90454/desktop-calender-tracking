@@ -528,12 +528,13 @@ namespace CalendarOverlay {
         }
         
         // Check if we clicked on scrollbar
-        // If not on scrollbar, launch Java GUI
-        if (renderer){
-            // We'll let the renderer handle scrollbar clicks
-            // If it's not a scrollbar click, launch the GUI
-            // The renderer will set isScrolling if it's a scrollbar click
+        // If the renderer is handling scrollbar interaction, don't launch Java GUI
+        if (renderer && renderer->isScrollingActive()){
+            // Renderer is handling scrollbar click, don't launch Java GUI
+            return;
         }
+        
+        // Not a scrollbar click, launch Java GUI
         launchJavaGUI();
     }
     
