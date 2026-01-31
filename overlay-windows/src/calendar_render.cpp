@@ -217,13 +217,28 @@ namespace CalendarOverlay{
             currentY+=eventHeight+5.0f;
         }
     }
-    
     void CalendarRenderer::drawEvent(const CalendarEvent& event, float yPos){
         if (!eventBrush||!textBrush||!textFormat||!timeFormat||!renderTarget){
             return;
         }
+        auto now = std::chrono::system_clock::now();
+        auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+        long long timeUntilStart = event.startTime - nowMs;
+        long long timeSinceEnd = nowMs - event.endTime;
+        D2D1_COLOR_F eventColor;
+        if (timeSinceEnd > 0) {
+            eventColor = D2D1::ColorF(0.7f, 0.7f, 0.7f, 0.7f);
+        } 
+        else if (nowMs >= event.startTime && nowMs <= event.endTime) {
+            eventColor = D2D1::ColorF(1.0f, 0.0f, 0.0f, 0.7f);
+        }
+        else if (timeUntilStart > 0 && timeUntilStart <= 3600000) {
+            eventColor = D2D1::ColorF(1.0f, 0.5f, 0.0f, 0.7f);
+        }
+        else {
+            eventColor = toColorF(event.colorR, event.colorG, event.colorB, 0.7f);
+        }
         D2D1_ROUNDED_RECT eventRect=D2D1::RoundedRect(D2D1::RectF(padding, yPos, renderSize.width-padding, yPos+eventHeight), 4.0f, 4.0f);
-        D2D1_COLOR_F eventColor=toColorF(event.colorR, event.colorG, event.colorB, 0.7f);
         eventBrush->SetColor(eventColor);
         renderTarget->FillRoundedRectangle(eventRect, eventBrush);
         auto eventTime=std::chrono::system_clock::from_time_t(event.startTime/1000);
@@ -255,11 +270,9 @@ namespace CalendarOverlay{
         renderTarget->DrawTextW(wss.str().c_str(), static_cast<UINT32>(wss.str().length()), timeFormat, textRect, textBrush);
     }
     void CalendarRenderer::drawWallpaperContent(){
-        if (!textBrush||!titleFormat||!textFormat||!timeFormat||!renderTarget){
+        if (!textBrush||!titleFormat||!textFormat||!timeFormat||!renderTarget||!eventBrush){
             return;
         }
-        // The window is now already 1/4 of screen size in top-right corner
-        // Use the entire window area for content
         float cornerPadding=10.0f;
         D2D1_RECT_F contentRect=D2D1::RectF(
             cornerPadding,
@@ -284,18 +297,39 @@ namespace CalendarOverlay{
         timeStream<<std::put_time(&localTime, L"%I:%M %p");
         D2D1_RECT_F timeRect=D2D1::RectF(contentRect.left+10.0f, contentRect.top+40.0f, contentRect.right-10.0f, contentRect.top+65.0f);
         renderTarget->DrawTextW(timeStream.str().c_str(), static_cast<UINT32>(timeStream.str().length()), titleFormat, timeRect, textBrush);
+        auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
         float eventStartY=contentRect.top+80.0f;
         float eventSpacing=25.0f;
         auto upcomingEvents=getUpcomingEvents(12);
         for (size_t i=0;i<std::min(upcomingEvents.size(), size_t(3));i++){
             const auto& event=upcomingEvents[i];
+            long long timeUntilStart = event.startTime - nowMs;
+            long long timeSinceEnd = nowMs - event.endTime;
+            float dotSize = 6.0f;
+            D2D1_ELLIPSE statusDot = D2D1::Ellipse(
+                D2D1::Point2F(contentRect.left + 10.0f, eventStartY + 10.0f),
+                dotSize, dotSize
+            );
+            if (timeSinceEnd > 0) {
+                eventBrush->SetColor(D2D1::ColorF(0.7f, 0.7f, 0.7f, 0.7f));
+            } 
+            else if (nowMs >= event.startTime && nowMs <= event.endTime) {
+                eventBrush->SetColor(D2D1::ColorF(1.0f, 0.0f, 0.0f, 0.7f));
+            }
+            else if (timeUntilStart > 0 && timeUntilStart <= 3600000) {
+                eventBrush->SetColor(D2D1::ColorF(1.0f, 0.5f, 0.0f, 0.7f));
+            }
+            else {
+                eventBrush->SetColor(toColorF(event.colorR, event.colorG, event.colorB, 0.7f));
+            }
+            renderTarget->FillEllipse(statusDot, eventBrush);
             auto eventTime=std::chrono::system_clock::from_time_t(event.startTime/1000);
             auto eventTimeT=std::chrono::system_clock::to_time_t(eventTime);
             std::tm eventTm;
             localtime_s(&eventTm, &eventTimeT);
             std::wstringstream eventTimeStream;
             eventTimeStream<<std::put_time(&eventTm, L"%I:%M");
-            D2D1_RECT_F eventTimeRect=D2D1::RectF(contentRect.left+10.0f, eventStartY, contentRect.left+60.0f, eventStartY+20.0f);
+            D2D1_RECT_F eventTimeRect=D2D1::RectF(contentRect.left+20.0f, eventStartY, contentRect.left+70.0f, eventStartY+20.0f);
             renderTarget->DrawTextW(eventTimeStream.str().c_str(), static_cast<UINT32>(eventTimeStream.str().length()), timeFormat, eventTimeRect, textBrush);
             std::wstring title;
             for (int j=0;j<256&&event.title[j]!='\0';j++){
@@ -304,7 +338,7 @@ namespace CalendarOverlay{
             if (title.length()>20){
                 title=title.substr(0, 17)+L"...";
             }
-            D2D1_RECT_F eventTitleRect=D2D1::RectF(contentRect.left+65.0f, eventStartY, contentRect.right-10.0f, eventStartY+20.0f);
+            D2D1_RECT_F eventTitleRect=D2D1::RectF(contentRect.left+75.0f, eventStartY, contentRect.right-10.0f, eventStartY+20.0f);
             renderTarget->DrawTextW(title.c_str(), static_cast<UINT32>(title.length()), textFormat, eventTitleRect, textBrush);
             eventStartY+=eventSpacing;
         }
