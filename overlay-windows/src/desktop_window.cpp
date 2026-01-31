@@ -45,143 +45,143 @@ namespace CalendarOverlay {
         doubleBufferDC(NULL),
         doubleBufferBitmap(NULL),
         bufferWidth(0),
-        bufferHeight(0) {
+        bufferHeight(0){
         
-        className = L"CalendarOverlayWindow";
+        className=L"CalendarOverlayWindow";
         
         // Set DPI awareness for better scaling
         initializeDPIAwareness();
         
         // Get system DPI
-        currentDPI = getSystemDPI();
+        currentDPI=getSystemDPI();
         
-        Config& cfg = Config::getInstance();
+        Config& cfg=Config::getInstance();
         cfg.load();
-        this->config = cfg.getConfig();
+        this->config=cfg.getConfig();
         
         #ifdef WALLPAPER_MODE
-        wallpaperMode = true;
+        wallpaperMode=true;
         #else
-        wallpaperMode = false;
+        wallpaperMode=false;
         #endif
         
         // Parse command line arguments
         int argc;
-        LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
-        if (argv) {
-            for (int i = 1; i < argc; i++) {
-                std::wstring arg = argv[i];
-                if (arg == L"--wallpaper" || arg == L"-w") {
-                    wallpaperMode = true;
+        LPWSTR* argv=CommandLineToArgvW(GetCommandLineW(), &argc);
+        if (argv){
+            for (int i=1; i < argc; i++){
+                std::wstring arg=argv[i];
+                if (arg == L"--wallpaper" || arg == L"-w"){
+                    wallpaperMode=true;
                 }
-                else if (arg == L"--no-wallpaper" || arg == L"-nw") {
-                    wallpaperMode = false;
+                else if (arg == L"--no-wallpaper" || arg == L"-nw"){
+                    wallpaperMode=false;
                 }
-                else if (arg == L"--position" && i + 1 < argc) {
-                    std::wstring pos = argv[++i];
-                    if (pos == L"top-right" || pos == L"tr") {
-                        config.position = "top-right";
+                else if (arg == L"--position" && i + 1 < argc){
+                    std::wstring pos=argv[++i];
+                    if (pos == L"top-right" || pos == L"tr"){
+                        config.position="top-right";
                     }
-                    else if (pos == L"top-left" || pos == L"tl") {
-                        config.position = "top-left";
+                    else if (pos == L"top-left" || pos == L"tl"){
+                        config.position="top-left";
                     }
-                    else if (pos == L"bottom-right" || pos == L"br") {
-                        config.position = "bottom-right";
+                    else if (pos == L"bottom-right" || pos == L"br"){
+                        config.position="bottom-right";
                     }
-                    else if (pos == L"bottom-left" || pos == L"bl") {
-                        config.position = "bottom-left";
+                    else if (pos == L"bottom-left" || pos == L"bl"){
+                        config.position="bottom-left";
                     }
                 }
-                else if (arg == L"--fullscreen" || arg == L"-f") {
-                    fullScreenWallpaper = true;
+                else if (arg == L"--fullscreen" || arg == L"-f"){
+                    fullScreenWallpaper=true;
                 }
             }
             LocalFree(argv);
         }
         
         // Initialize window dimensions with DPI scaling
-        if (wallpaperMode) {
+        if (wallpaperMode){
             RECT desktopRect;
             GetWindowRect(GetDesktopWindow(), &desktopRect);
             
             // Base dimensions at 96 DPI
-            int baseWidth = 400;
-            int baseHeight = 600;
+            int baseWidth=400;
+            int baseHeight=600;
             
             // Scale for current DPI
-            windowWidth = scaleForDPI(baseWidth);
-            windowHeight = scaleForDPI(baseHeight);
+            windowWidth=scaleForDPI(baseWidth);
+            windowHeight=scaleForDPI(baseHeight);
             
             // Ensure window doesn't exceed 1/4 of screen
-            int screenWidth = desktopRect.right - desktopRect.left;
-            int screenHeight = desktopRect.bottom - desktopRect.top;
+            int screenWidth=desktopRect.right - desktopRect.left;
+            int screenHeight=desktopRect.bottom - desktopRect.top;
             
-            if (windowWidth > screenWidth / 4) {
-                windowWidth = screenWidth / 4;
+            if (windowWidth > screenWidth / 4){
+                windowWidth=screenWidth / 4;
             }
-            if (windowHeight > screenHeight / 4) {
-                windowHeight = screenHeight / 4;
+            if (windowHeight > screenHeight / 4){
+                windowHeight=screenHeight / 4;
             }
             
             // Position with scaled padding
-            int padding = scaleForDPI(10);
-            windowX = desktopRect.right - windowWidth - padding;
-            windowY = padding;
+            int padding=scaleForDPI(10);
+            windowX=desktopRect.right - windowWidth - padding;
+            windowY=padding;
             
-            if (config.position.empty()) {
-                config.position = "top-right";
+            if (config.position.empty()){
+                config.position="top-right";
             }
         }
         else {
             // Scale saved positions from config (stored at 96 DPI)
-            windowX = scaleForDPI(config.positionX);
-            windowY = scaleForDPI(config.positionY);
-            windowWidth = scaleForDPI(config.width);
-            windowHeight = scaleForDPI(config.height);
+            windowX=scaleForDPI(config.positionX);
+            windowY=scaleForDPI(config.positionY);
+            windowWidth=scaleForDPI(config.width);
+            windowHeight=scaleForDPI(config.height);
         }
         
-        alpha = static_cast<BYTE>(config.opacity * 255);
-        clickThrough = config.clickThrough;
+        alpha=static_cast<BYTE>(config.opacity * 255);
+        clickThrough=config.clickThrough;
         
-        renderer = std::make_unique<CalendarRenderer>();
-        eventManager = std::make_unique<EventManager>();
+        renderer=std::make_unique<CalendarRenderer>();
+        eventManager=std::make_unique<EventManager>();
     }
     
-    DesktopWindow::~DesktopWindow() {
+    DesktopWindow::~DesktopWindow(){
         close();
         cleanupDoubleBuffer();
     }
     
-    void DesktopWindow::initializeDPIAwareness() {
+    void DesktopWindow::initializeDPIAwareness(){
         // Try per-monitor DPI awareness for Windows 10+
-        HMODULE shcore = LoadLibrary(L"Shcore.dll");
-        if (shcore) {
+        HMODULE shcore=LoadLibrary(L"Shcore.dll");
+        if (shcore){
             // Check if SetProcessDpiAwareness exists (Windows 8.1+)
             typedef HRESULT(WINAPI* SetProcessDpiAwarenessProc)(int);
-            auto SetProcessDpiAwareness = (SetProcessDpiAwarenessProc)GetProcAddress(shcore, "SetProcessDpiAwareness");
+            auto SetProcessDpiAwareness=(SetProcessDpiAwarenessProc)GetProcAddress(shcore, "SetProcessDpiAwareness");
             
-            if (SetProcessDpiAwareness) {
+            if (SetProcessDpiAwareness){
                 // Try per-monitor awareness first (value 2)
-                if (SUCCEEDED(SetProcessDpiAwareness(2))) {
-                    hasPerMonitorDPIAwareness = true;
+                if (SUCCEEDED(SetProcessDpiAwareness(2))){
+                    hasPerMonitorDPIAwareness=true;
                 }
             }
             FreeLibrary(shcore);
         }
         
         // Fallback to system DPI awareness for older systems
-        if (!hasPerMonitorDPIAwareness) {
+        if (!hasPerMonitorDPIAwareness){
             SetProcessDPIAware();  // This works on Windows Vista+
         }
     }
     
-    bool DesktopWindow::create() {
-        if (!registerWindowClass()) {
+    bool DesktopWindow::create(){
+        if (!registerWindowClass()){
             std::cerr << "Failed to register window class" << std::endl;
             return false;
         }
         
-        if (!createWindowInstance()) {
+        if (!createWindowInstance()){
             std::cerr << "Failed to create window instance" << std::endl;
             return false;
         }
@@ -190,58 +190,58 @@ namespace CalendarOverlay {
         createDoubleBuffer(windowWidth, windowHeight);
         
         // Initialize renderer
-        if (!renderer->initialize(hwnd)) {
+        if (!renderer->initialize(hwnd)){
             std::cerr << "Failed to initialize renderer" << std::endl;
             return false;
         }
         
         renderer->setConfig(config);
         
-        if (!eventManager->initialize()) {
+        if (!eventManager->initialize()){
             std::cerr << "Failed to initialize event manager" << std::endl;
         }
         
         renderer->setEvents(eventManager->getTodayEvents());
         
         // Set timers
-        renderTimer = SetTimer(hwnd, 1, 16, NULL); // ~60 FPS
-        updateTimer = SetTimer(hwnd, 2, config.refreshInterval * 1000, NULL);
-        desktopCheckTimer = SetTimer(hwnd, 3, 500, NULL);
+        renderTimer=SetTimer(hwnd, 1, 16, NULL); // ~60 FPS
+        updateTimer=SetTimer(hwnd, 2, config.refreshInterval * 1000, NULL);
+        desktopCheckTimer=SetTimer(hwnd, 3, 500, NULL);
         
         createTrayIcon();
         return true;
     }
     
-    bool DesktopWindow::registerWindowClass() {
-        WNDCLASSEXW wc = {};
-        wc.cbSize = sizeof(WNDCLASSEXW);
-        wc.style = CS_HREDRAW | CS_VREDRAW;
-        wc.lpfnWndProc = windowProc;
-        wc.hInstance = hInstance;
-        wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-        wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
-        wc.lpszClassName = className.c_str();
-        wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
-        wc.hIconSm = LoadIcon(NULL, IDI_APPLICATION);
+    bool DesktopWindow::registerWindowClass(){
+        WNDCLASSEXW wc={};
+        wc.cbSize=sizeof(WNDCLASSEXW);
+        wc.style=CS_HREDRAW | CS_VREDRAW;
+        wc.lpfnWndProc=windowProc;
+        wc.hInstance=hInstance;
+        wc.hCursor=LoadCursor(NULL, IDC_ARROW);
+        wc.hbrBackground=(HBRUSH)GetStockObject(BLACK_BRUSH);
+        wc.lpszClassName=className.c_str();
+        wc.hIcon=LoadIcon(NULL, IDI_APPLICATION);
+        wc.hIconSm=LoadIcon(NULL, IDI_APPLICATION);
         
-        return RegisterClassExW(&wc) != 0;
+        return RegisterClassExW(&wc)!=0;
     }
     
-    bool DesktopWindow::createWindowInstance() {
-        DWORD exStyle = WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
+    bool DesktopWindow::createWindowInstance(){
+        DWORD exStyle=WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
         
-        if (wallpaperMode) {
+        if (wallpaperMode){
             exStyle |= WS_EX_TOPMOST;
         }
         else {
             exStyle |= WS_EX_TOPMOST;
         }
         
-        if (clickThrough) {
+        if (clickThrough){
             exStyle |= WS_EX_TRANSPARENT;
         }
         
-        hwnd = CreateWindowExW(
+        hwnd=CreateWindowExW(
             exStyle,
             className.c_str(),
             L"Calendar Overlay",
@@ -249,7 +249,7 @@ namespace CalendarOverlay {
             windowX, windowY, windowWidth, windowHeight,
             NULL, NULL, hInstance, this);
             
-        if (!hwnd) {
+        if (!hwnd){
             return false;
         }
         
@@ -257,32 +257,32 @@ namespace CalendarOverlay {
         SetLayeredWindowAttributes(hwnd, 0, 100, LWA_ALPHA);
         
         // Enable modern window effects if available
-        HMODULE dwmapi = LoadLibrary(L"dwmapi.dll");
-        if (dwmapi) {
+        HMODULE dwmapi=LoadLibrary(L"dwmapi.dll");
+        if (dwmapi){
             // Check if we're on Windows 10 or later
-            OSVERSIONINFOEX osvi = { sizeof(osvi), 10, 0 };
-            DWORDLONG dwlConditionMask = 0;
+            OSVERSIONINFOEX osvi={ sizeof(osvi), 10, 0 };
+            DWORDLONG dwlConditionMask=0;
             VER_SET_CONDITION(dwlConditionMask, VER_MAJORVERSION, VER_GREATER_EQUAL);
             
-            if (VerifyVersionInfo(&osvi, VER_MAJORVERSION, dwlConditionMask)) {
+            if (VerifyVersionInfo(&osvi, VER_MAJORVERSION, dwlConditionMask)){
                 // Enable dark mode if available
-                BOOL darkMode = TRUE;
+                BOOL darkMode=TRUE;
                 DwmSetWindowAttribute(hwnd, 20, &darkMode, sizeof(darkMode)); // DWMWA_USE_IMMERSIVE_DARK_MODE
                 
                 // Enable rounded corners on Windows 11
-                OSVERSIONINFOEX osvi11 = { sizeof(osvi11), 10, 0, 22000 };
-                DWORDLONG dwlConditionMask11 = 0;
+                OSVERSIONINFOEX osvi11={ sizeof(osvi11), 10, 0, 22000 };
+                DWORDLONG dwlConditionMask11=0;
                 VER_SET_CONDITION(dwlConditionMask11, VER_BUILDNUMBER, VER_GREATER_EQUAL);
                 
-                if (VerifyVersionInfo(&osvi11, VER_BUILDNUMBER, dwlConditionMask11)) {
-                    DWORD cornerPref = 2; // DWMWCP_ROUND
+                if (VerifyVersionInfo(&osvi11, VER_BUILDNUMBER, dwlConditionMask11)){
+                    DWORD cornerPref=2; // DWMWCP_ROUND
                     DwmSetWindowAttribute(hwnd, 33, &cornerPref, sizeof(cornerPref)); // DWMWA_WINDOW_CORNER_PREFERENCE
                 }
             }
             FreeLibrary(dwmapi);
         }
         
-        if (wallpaperMode) {
+        if (wallpaperMode){
             SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED);
         }
@@ -290,66 +290,66 @@ namespace CalendarOverlay {
         return true;
     }
     
-    void DesktopWindow::show() {
-        if (hwnd && !visible) {
+    void DesktopWindow::show(){
+        if (hwnd && !visible){
             ShowWindow(hwnd, SW_SHOWNOACTIVATE);
-            visible = true;
+            visible=true;
             InvalidateRect(hwnd, NULL, TRUE);
         }
     }
     
-    void DesktopWindow::hide() {
-        if (hwnd && visible) {
+    void DesktopWindow::hide(){
+        if (hwnd && visible){
             ShowWindow(hwnd, SW_HIDE);
-            visible = false;
+            visible=false;
         }
     }
     
-    void DesktopWindow::close() {
-        if (renderTimer) {
+    void DesktopWindow::close(){
+        if (renderTimer){
             KillTimer(hwnd, renderTimer);
         }
-        if (updateTimer) {
+        if (updateTimer){
             KillTimer(hwnd, updateTimer);
         }
-        if (desktopCheckTimer) {
+        if (desktopCheckTimer){
             KillTimer(hwnd, desktopCheckTimer);
         }
         
         removeTrayIcon();
         
-        if (hwnd) {
+        if (hwnd){
             DestroyWindow(hwnd);
-            hwnd = NULL;
+            hwnd=NULL;
         }
         
         UnregisterClassW(className.c_str(), hInstance);
     }
     
-    void DesktopWindow::update() {
-        if (eventManager) {
+    void DesktopWindow::update(){
+        if (eventManager){
             eventManager->update();
-            if (renderer) {
+            if (renderer){
                 renderer->setEvents(eventManager->getTodayEvents());
             }
         }
     }
     
-    void DesktopWindow::render() {
-        if (!visible || !renderer || !hwnd) {
+    void DesktopWindow::render(){
+        if (!visible || !renderer || !hwnd){
             return;
         }
         
         PAINTSTRUCT ps;
-        HDC hdc = BeginPaint(hwnd, &ps);
+        HDC hdc=BeginPaint(hwnd, &ps);
         
         // Use double buffering for smooth rendering
-        if (doubleBufferDC && doubleBufferBitmap) {
+        if (doubleBufferDC && doubleBufferBitmap){
             // Clear the buffer with transparency
             RECT clientRect;
             GetClientRect(hwnd, &clientRect);
             
-            HBRUSH bgBrush = CreateSolidBrush(RGB(0, 0, 0));
+            HBRUSH bgBrush=CreateSolidBrush(RGB(0, 0, 0));
             FillRect(doubleBufferDC, &clientRect, bgBrush);
             DeleteObject(bgBrush);
             
@@ -357,13 +357,13 @@ namespace CalendarOverlay {
             renderer->render();
             
             // Apply transparency when copying
-            BLENDFUNCTION blend = { 0 };
-            blend.BlendOp = AC_SRC_OVER;
-            blend.SourceConstantAlpha = alpha;
-            blend.AlphaFormat = AC_SRC_ALPHA;
+            BLENDFUNCTION blend={ 0 };
+            blend.BlendOp=AC_SRC_OVER;
+            blend.SourceConstantAlpha=alpha;
+            blend.AlphaFormat=AC_SRC_ALPHA;
             
             // Copy buffer to screen with alpha blending
-            HDC screenDC = GetDC(hwnd);
+            HDC screenDC=GetDC(hwnd);
             AlphaBlend(screenDC, 0, 0, clientRect.right, clientRect.bottom,
                       doubleBufferDC, 0, 0, clientRect.right, clientRect.bottom,
                       blend);
@@ -377,20 +377,20 @@ namespace CalendarOverlay {
         EndPaint(hwnd, &ps);
     }
     
-    LRESULT CALLBACK DesktopWindow::windowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-        DesktopWindow* window = nullptr;
+    LRESULT CALLBACK DesktopWindow::windowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam){
+        DesktopWindow* window=nullptr;
         
-        if (msg == WM_NCCREATE) {
-            CREATESTRUCT* create = reinterpret_cast<CREATESTRUCT*>(lParam);
-            window = static_cast<DesktopWindow*>(create->lpCreateParams);
+        if (msg == WM_NCCREATE){
+            CREATESTRUCT* create=reinterpret_cast<CREATESTRUCT*>(lParam);
+            window=static_cast<DesktopWindow*>(create->lpCreateParams);
             SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(window));
             return DefWindowProc(hwnd, msg, wParam, lParam);
         }
         
-        window = reinterpret_cast<DesktopWindow*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+        window=reinterpret_cast<DesktopWindow*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
         
-        if (window) {
-            switch (msg) {
+        if (window){
+            switch (msg){
                 case WM_PAINT:
                     window->onPaint();
                     return 0;
@@ -420,7 +420,7 @@ namespace CalendarOverlay {
                     return 0;
                     
                 case WM_APP + 1:
-                    if (lParam == WM_RBUTTONUP || lParam == WM_CONTEXTMENU) {
+                    if (lParam == WM_RBUTTONUP || lParam == WM_CONTEXTMENU){
                         POINT pt;
                         GetCursorPos(&pt);
                         window->showContextMenu(pt.x, pt.y);
@@ -432,11 +432,11 @@ namespace CalendarOverlay {
                     return 0;
                     
                 case WM_SIZE:
-                    if (window->hwnd) {
+                    if (window->hwnd){
                         RECT clientRect;
                         GetClientRect(window->hwnd, &clientRect);
                         window->resizeDoubleBuffer(clientRect.right, clientRect.bottom);
-                        if (window->renderer) {
+                        if (window->renderer){
                             window->renderer->resize(clientRect.right, clientRect.bottom);
                         }
                     }
@@ -454,15 +454,15 @@ namespace CalendarOverlay {
         return DefWindowProc(hwnd, msg, wParam, lParam);
     }
     
-    void DesktopWindow::onPaint() {
+    void DesktopWindow::onPaint(){
         render();
     }
     
-    void DesktopWindow::onTimer() {
-        static int updateCounter = 0;
+    void DesktopWindow::onTimer(){
+        static int updateCounter=0;
         
         // Force repaint
-        if (visible && hwnd) {
+        if (visible && hwnd){
             InvalidateRect(hwnd, NULL, FALSE);
         }
         
@@ -470,19 +470,19 @@ namespace CalendarOverlay {
         updateWindowVisibilityBasedOnDesktop();
         
         // Update data periodically
-        if (++updateCounter >= 30) {
+        if (++updateCounter >= 30){
             update();
-            updateCounter = 0;
+            updateCounter=0;
         }
     }
     
-    void DesktopWindow::onMouseMove(int x, int y) {
-        if (dragging) {
+    void DesktopWindow::onMouseMove(int x, int y){
+        if (dragging){
             POINT cursorPos;
             GetCursorPos(&cursorPos);
             
-            int deltaX = cursorPos.x - dragStartX;
-            int deltaY = cursorPos.y - dragStartY;
+            int deltaX=cursorPos.x - dragStartX;
+            int deltaY=cursorPos.y - dragStartY;
             
             windowX += deltaX;
             windowY += deltaY;
@@ -490,52 +490,53 @@ namespace CalendarOverlay {
             SetWindowPos(hwnd, NULL, windowX, windowY, 0, 0, 
                 SWP_NOZORDER | SWP_NOSIZE | SWP_NOACTIVATE);
             
-            dragStartX = cursorPos.x;
-            dragStartY = cursorPos.y;
+            dragStartX=cursorPos.x;
+            dragStartY=cursorPos.y;
             
             // Save unscaled position
-            Config& cfg = Config::getInstance();
-            int unscaledX = unscaleForDPI(windowX);
-            int unscaledY = unscaleForDPI(windowY);
+            Config& cfg=Config::getInstance();
+            int unscaledX=unscaleForDPI(windowX);
+            int unscaledY=unscaleForDPI(windowY);
             cfg.setPosition(unscaledX, unscaledY);
             cfg.save();
         }
     }
-    
     void DesktopWindow::onMouseDown(int x, int y){
-        launchJavaGUI();
-        if (GetKeyState(VK_CONTROL) & 0x8000) {
-            dragging = true;
-            POINT p;
-            GetCursorPos(&p);
-            dragStartX = p.x;
-            dragStartY = p.y;
+        bool ctrlDown=(GetKeyState(VK_CONTROL)&0x8000)!=0;
+        if (ctrlDown){
+            dragging=true;
+            POINT cursorPos;
+            GetCursorPos(&cursorPos);
+            dragStartX=cursorPos.x;
+            dragStartY=cursorPos.y;
+            return;
         }
+        launchJavaGUI();
     }
     
-    void DesktopWindow::onMouseUp(int x, int y) {
-        dragging = false;
+    void DesktopWindow::onMouseUp(int x, int y){
+        dragging=false;
         
-        if (clickThrough && hwnd) {
-            LONG exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+        if (clickThrough && hwnd){
+            LONG exStyle=GetWindowLong(hwnd, GWL_EXSTYLE);
             exStyle |= WS_EX_TRANSPARENT;
             SetWindowLong(hwnd, GWL_EXSTYLE, exStyle);
         }
     }
     
-    void DesktopWindow::onKeyDown(WPARAM key) {
-        if (key == VK_ESCAPE) {
+    void DesktopWindow::onKeyDown(WPARAM key){
+        if (key == VK_ESCAPE){
             hide();
         }
-        else if (key == VK_F5) {
+        else if (key == VK_F5){
             update();
         }
     }
     
-    void DesktopWindow::onCommand(WPARAM wParam) {
-        switch (LOWORD(wParam)) {
+    void DesktopWindow::onCommand(WPARAM wParam){
+        switch (LOWORD(wParam)){
             case 1001: // Show/Hide
-                if (visible) {
+                if (visible){
                     hide();
                 } else {
                     show();
@@ -548,20 +549,20 @@ namespace CalendarOverlay {
         }
     }
     
-    void DesktopWindow::onDPIChanged(WPARAM wParam, LPARAM lParam) {
-        if (hasPerMonitorDPIAwareness && hwnd) {
-            UINT newDPI = HIWORD(wParam);
+    void DesktopWindow::onDPIChanged(WPARAM wParam, LPARAM lParam){
+        if (hasPerMonitorDPIAwareness && hwnd){
+            UINT newDPI=HIWORD(wParam);
             
             // Calculate scale factor
-            float scaleFactor = static_cast<float>(newDPI) / static_cast<float>(currentDPI);
+            float scaleFactor=static_cast<float>(newDPI) / static_cast<float>(currentDPI);
             
             // Update window size and position
-            RECT* suggestedRect = (RECT*)lParam;
-            if (suggestedRect) {
-                windowX = suggestedRect->left;
-                windowY = suggestedRect->top;
-                windowWidth = suggestedRect->right - suggestedRect->left;
-                windowHeight = suggestedRect->bottom - suggestedRect->top;
+            RECT* suggestedRect=(RECT*)lParam;
+            if (suggestedRect){
+                windowX=suggestedRect->left;
+                windowY=suggestedRect->top;
+                windowWidth=suggestedRect->right - suggestedRect->left;
+                windowHeight=suggestedRect->bottom - suggestedRect->top;
                 
                 SetWindowPos(hwnd, NULL,
                     windowX, windowY,
@@ -572,54 +573,54 @@ namespace CalendarOverlay {
                 resizeDoubleBuffer(windowWidth, windowHeight);
                 
                 // Resize renderer
-                if (renderer) {
+                if (renderer){
                     renderer->resize(windowWidth, windowHeight);
                 }
             }
             
             // Update DPI
-            currentDPI = newDPI;
+            currentDPI=newDPI;
             
             // Force repaint
             InvalidateRect(hwnd, NULL, TRUE);
         }
     }
     
-    void DesktopWindow::createTrayIcon() {
+    void DesktopWindow::createTrayIcon(){
         memset(&trayIconData, 0, sizeof(trayIconData));
-        trayIconData.cbSize = sizeof(NOTIFYICONDATA);
-        trayIconData.hWnd = hwnd;
-        trayIconData.uID = 100;
-        trayIconData.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
-        trayIconData.uCallbackMessage = WM_APP + 1;
+        trayIconData.cbSize=sizeof(NOTIFYICONDATA);
+        trayIconData.hWnd=hwnd;
+        trayIconData.uID=100;
+        trayIconData.uFlags=NIF_ICON | NIF_MESSAGE | NIF_TIP;
+        trayIconData.uCallbackMessage=WM_APP + 1;
         
         // Try to load application icon
-        trayIconData.hIcon = (HICON)LoadImage(hInstance, 
+        trayIconData.hIcon=(HICON)LoadImage(hInstance, 
             MAKEINTRESOURCE(1), 
             IMAGE_ICON, 
             GetSystemMetrics(SM_CXSMICON), 
             GetSystemMetrics(SM_CYSMICON), 
             0);
             
-        if (!trayIconData.hIcon) {
-            trayIconData.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+        if (!trayIconData.hIcon){
+            trayIconData.hIcon=LoadIcon(NULL, IDI_APPLICATION);
         }
         
         wcscpy_s(trayIconData.szTip, L"Calendar Overlay");
         Shell_NotifyIcon(NIM_ADD, &trayIconData);
-        trayIconVisible = true;
+        trayIconVisible=true;
     }
     
-    void DesktopWindow::removeTrayIcon() {
-        if (trayIconVisible) {
+    void DesktopWindow::removeTrayIcon(){
+        if (trayIconVisible){
             Shell_NotifyIcon(NIM_DELETE, &trayIconData);
-            trayIconVisible = false;
+            trayIconVisible=false;
         }
     }
     
-    void DesktopWindow::showContextMenu(int x, int y) {
-        HMENU hMenu = CreatePopupMenu();
-        if (hMenu) {
+    void DesktopWindow::showContextMenu(int x, int y){
+        HMENU hMenu=CreatePopupMenu();
+        if (hMenu){
             // Add menu items with proper Unicode support
             InsertMenuW(hMenu, 0, MF_BYPOSITION | MF_STRING, 1001, L"Show/Hide");
             InsertMenuW(hMenu, 1, MF_BYPOSITION | MF_SEPARATOR, 0, NULL);
@@ -632,34 +633,34 @@ namespace CalendarOverlay {
         }
     }
     
-    void DesktopWindow::launchJavaGUI() {
+    void DesktopWindow::launchJavaGUI(){
         // Existing implementation remains the same
-        std::wstring javaPath = L"java";
-        std::wstring jarPath = L"CalendarApp.jar";
+        std::wstring javaPath=L"java";
+        std::wstring jarPath=L"CalendarApp.jar";
         wchar_t exePath[MAX_PATH];
         GetModuleFileNameW(NULL, exePath, MAX_PATH);
-        std::wstring exeDir = exePath;
-        size_t lastSlash = exeDir.find_last_of(L"\\/");
-        if (lastSlash != std::wstring::npos) {
-            exeDir = exeDir.substr(0, lastSlash + 1);
-            jarPath = exeDir + L"CalendarApp.jar";
+        std::wstring exeDir=exePath;
+        size_t lastSlash=exeDir.find_last_of(L"\\/");
+        if (lastSlash!=std::wstring::npos){
+            exeDir=exeDir.substr(0, lastSlash + 1);
+            jarPath=exeDir + L"CalendarApp.jar";
         }
         
-        DWORD fileAttrib = GetFileAttributesW(jarPath.c_str());
-        if (fileAttrib == INVALID_FILE_ATTRIBUTES || (fileAttrib & FILE_ATTRIBUTE_DIRECTORY)) {
-            jarPath = L"..\\dist\\CalendarApp.jar";
-            fileAttrib = GetFileAttributesW(jarPath.c_str());
-            if (fileAttrib == INVALID_FILE_ATTRIBUTES || (fileAttrib & FILE_ATTRIBUTE_DIRECTORY)) {
+        DWORD fileAttrib=GetFileAttributesW(jarPath.c_str());
+        if (fileAttrib == INVALID_FILE_ATTRIBUTES || (fileAttrib&FILE_ATTRIBUTE_DIRECTORY)){
+            jarPath=L"..\\dist\\CalendarApp.jar";
+            fileAttrib=GetFileAttributesW(jarPath.c_str());
+            if (fileAttrib == INVALID_FILE_ATTRIBUTES || (fileAttrib&FILE_ATTRIBUTE_DIRECTORY)){
                 std::cerr << "Java JAR not found. Please ensure CalendarApp.jar is in the same directory." << std::endl;
                 return;
             }
         }
         
-        std::wstring command = L"\"" + javaPath + L"\" -jar \"" + jarPath + L"\"";
-        STARTUPINFOW si = { sizeof(si) };
-        PROCESS_INFORMATION pi = { 0 };
+        std::wstring command=L"\"" + javaPath + L"\" -jar \"" + jarPath + L"\"";
+        STARTUPINFOW si={ sizeof(si) };
+        PROCESS_INFORMATION pi={ 0 };
         if (CreateProcessW(NULL, const_cast<LPWSTR>(command.c_str()), NULL, NULL, FALSE, 
-                           CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+                           CREATE_NO_WINDOW, NULL, NULL, &si, &pi)){
             CloseHandle(pi.hProcess);
             CloseHandle(pi.hThread);
         } else {
@@ -667,9 +668,9 @@ namespace CalendarOverlay {
         }
     }
     
-    bool DesktopWindow::checkIfOnDesktop() {
-        HWND foregroundWindow = GetForegroundWindow();
-        if (!foregroundWindow) {
+    bool DesktopWindow::checkIfOnDesktop(){
+        HWND foregroundWindow=GetForegroundWindow();
+        if (!foregroundWindow){
             return true;
         }
         
@@ -679,27 +680,27 @@ namespace CalendarOverlay {
         if (strcmp(className, "Progman") == 0 || 
             strcmp(className, "WorkerW") == 0 ||
             strcmp(className, "Shell_TrayWnd") == 0 ||
-            strcmp(className, "Button") == 0) {
+            strcmp(className, "Button") == 0){
             return true;
         }
         
-        if (IsIconic(foregroundWindow) || !IsWindowVisible(foregroundWindow)) {
+        if (IsIconic(foregroundWindow) || !IsWindowVisible(foregroundWindow)){
             return true;
         }
         
-        if (foregroundWindow == hwnd) {
+        if (foregroundWindow == hwnd){
             return true;
         }
         
         return false;
     }
     
-    void DesktopWindow::updateWindowVisibilityBasedOnDesktop() {
-        bool currentlyOnDesktop = checkIfOnDesktop();
+    void DesktopWindow::updateWindowVisibilityBasedOnDesktop(){
+        bool currentlyOnDesktop=checkIfOnDesktop();
         
-        if (currentlyOnDesktop != isOnDesktop) {
-            isOnDesktop = currentlyOnDesktop;
-            if (isOnDesktop) {
+        if (currentlyOnDesktop!=isOnDesktop){
+            isOnDesktop=currentlyOnDesktop;
+            if (isOnDesktop){
                 show();
             } else {
                 hide();
@@ -707,23 +708,23 @@ namespace CalendarOverlay {
         }
     }
     
-    UINT DesktopWindow::getSystemDPI() {
-        HDC hdc = GetDC(NULL);
+    UINT DesktopWindow::getSystemDPI(){
+        HDC hdc=GetDC(NULL);
         if (!hdc) return 96;
         
-        UINT dpi = GetDeviceCaps(hdc, LOGPIXELSX);
+        UINT dpi=GetDeviceCaps(hdc, LOGPIXELSX);
         ReleaseDC(NULL, hdc);
         return dpi;
     }
     
-    UINT DesktopWindow::getWindowDPI() {
-        if (hasPerMonitorDPIAwareness) {
-            HMODULE shcore = LoadLibrary(L"Shcore.dll");
-            if (shcore) {
+    UINT DesktopWindow::getWindowDPI(){
+        if (hasPerMonitorDPIAwareness){
+            HMODULE shcore=LoadLibrary(L"Shcore.dll");
+            if (shcore){
                 typedef UINT(WINAPI* GetDpiForWindowProc)(HWND);
-                auto GetDpiForWindow = (GetDpiForWindowProc)GetProcAddress(shcore, "GetDpiForWindow");
-                if (GetDpiForWindow && hwnd) {
-                    UINT dpi = GetDpiForWindow(hwnd);
+                auto GetDpiForWindow=(GetDpiForWindowProc)GetProcAddress(shcore, "GetDpiForWindow");
+                if (GetDpiForWindow && hwnd){
+                    UINT dpi=GetDpiForWindow(hwnd);
                     FreeLibrary(shcore);
                     return dpi;
                 }
@@ -733,73 +734,73 @@ namespace CalendarOverlay {
         return currentDPI;
     }
     
-    int DesktopWindow::scaleForDPI(int value, UINT dpi) {
-        if (dpi == 0) dpi = currentDPI;
+    int DesktopWindow::scaleForDPI(int value, UINT dpi){
+        if (dpi == 0) dpi=currentDPI;
         return MulDiv(value, dpi, 96);
     }
     
-    int DesktopWindow::unscaleForDPI(int value, UINT dpi) {
-        if (dpi == 0) dpi = currentDPI;
+    int DesktopWindow::unscaleForDPI(int value, UINT dpi){
+        if (dpi == 0) dpi=currentDPI;
         return MulDiv(value, 96, dpi);
     }
     
-    void DesktopWindow::createDoubleBuffer(int width, int height) {
+    void DesktopWindow::createDoubleBuffer(int width, int height){
         cleanupDoubleBuffer();
         
-        if (hwnd && width > 0 && height > 0) {
-            HDC hdc = GetDC(hwnd);
-            if (hdc) {
-                doubleBufferDC = CreateCompatibleDC(hdc);
-                doubleBufferBitmap = CreateCompatibleBitmap(hdc, width, height);
+        if (hwnd && width > 0 && height > 0){
+            HDC hdc=GetDC(hwnd);
+            if (hdc){
+                doubleBufferDC=CreateCompatibleDC(hdc);
+                doubleBufferBitmap=CreateCompatibleBitmap(hdc, width, height);
                 SelectObject(doubleBufferDC, doubleBufferBitmap);
                 ReleaseDC(hwnd, hdc);
                 
-                bufferWidth = width;
-                bufferHeight = height;
+                bufferWidth=width;
+                bufferHeight=height;
             }
         }
     }
     
-    void DesktopWindow::cleanupDoubleBuffer() {
-        if (doubleBufferBitmap) {
+    void DesktopWindow::cleanupDoubleBuffer(){
+        if (doubleBufferBitmap){
             DeleteObject(doubleBufferBitmap);
-            doubleBufferBitmap = NULL;
+            doubleBufferBitmap=NULL;
         }
-        if (doubleBufferDC) {
+        if (doubleBufferDC){
             DeleteDC(doubleBufferDC);
-            doubleBufferDC = NULL;
+            doubleBufferDC=NULL;
         }
-        bufferWidth = 0;
-        bufferHeight = 0;
+        bufferWidth=0;
+        bufferHeight=0;
     }
     
-    void DesktopWindow::resizeDoubleBuffer(int width, int height) {
-        if (width != bufferWidth || height != bufferHeight) {
+    void DesktopWindow::resizeDoubleBuffer(int width, int height){
+        if (width!=bufferWidth || height!=bufferHeight){
             createDoubleBuffer(width, height);
         }
     }
     
-    void DesktopWindow::setPosition(int x, int y) {
+    void DesktopWindow::setPosition(int x, int y){
         // Scale from 96 DPI to current DPI
-        windowX = scaleForDPI(x);
-        windowY = scaleForDPI(y);
+        windowX=scaleForDPI(x);
+        windowY=scaleForDPI(y);
         
-        if (hwnd) {
+        if (hwnd){
             SetWindowPos(hwnd, NULL, windowX, windowY, 0, 0, 
                 SWP_NOZORDER | SWP_NOSIZE | SWP_NOACTIVATE);
         }
         
-        Config& cfg = Config::getInstance();
+        Config& cfg=Config::getInstance();
         cfg.setPosition(x, y);
         cfg.save();
     }
     
-    void DesktopWindow::setSize(int width, int height) {
+    void DesktopWindow::setSize(int width, int height){
         // Scale from 96 DPI to current DPI
-        windowWidth = scaleForDPI(width);
-        windowHeight = scaleForDPI(height);
+        windowWidth=scaleForDPI(width);
+        windowHeight=scaleForDPI(height);
         
-        if (hwnd) {
+        if (hwnd){
             SetWindowPos(hwnd, NULL, 0, 0, windowWidth, windowHeight, 
                 SWP_NOZORDER | SWP_NOMOVE | SWP_NOACTIVATE);
             
@@ -807,39 +808,39 @@ namespace CalendarOverlay {
             resizeDoubleBuffer(windowWidth, windowHeight);
             
             // Resize renderer
-            if (renderer) {
+            if (renderer){
                 renderer->resize(windowWidth, windowHeight);
             }
         }
         
-        Config& cfg = Config::getInstance();
+        Config& cfg=Config::getInstance();
         cfg.setSize(width, height);
         cfg.save();
     }
     
-    void DesktopWindow::setOpacity(float opacity) {
-        if (opacity < 0.0f) opacity = 0.0f;
-        if (opacity > 1.0f) opacity = 1.0f;
+    void DesktopWindow::setOpacity(float opacity){
+        if (opacity < 0.0f) opacity=0.0f;
+        if (opacity > 1.0f) opacity=1.0f;
         
-        alpha = static_cast<BYTE>(opacity * 255);
-        config.opacity = opacity;
+        alpha=static_cast<BYTE>(opacity * 255);
+        config.opacity=opacity;
         
-        if (hwnd) {
+        if (hwnd){
             SetLayeredWindowAttributes(hwnd, 0, 100, LWA_ALPHA);
         }
         
-        Config& cfg = Config::getInstance();
+        Config& cfg=Config::getInstance();
         cfg.setOpacity(opacity);
         cfg.save();
     }
     
-    void DesktopWindow::setClickThrough(bool enabled) {
-        clickThrough = enabled;
-        config.clickThrough = enabled;
+    void DesktopWindow::setClickThrough(bool enabled){
+        clickThrough=enabled;
+        config.clickThrough=enabled;
         
-        if (hwnd) {
-            LONG exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
-            if (enabled) {
+        if (hwnd){
+            LONG exStyle=GetWindowLong(hwnd, GWL_EXSTYLE);
+            if (enabled){
                 exStyle |= WS_EX_TRANSPARENT;
             }
             else {
@@ -848,18 +849,18 @@ namespace CalendarOverlay {
             SetWindowLong(hwnd, GWL_EXSTYLE, exStyle);
         }
         
-        Config& cfg = Config::getInstance();
+        Config& cfg=Config::getInstance();
         cfg.setClickThrough(enabled);
         cfg.save();
     }
     
-    void DesktopWindow::adjustWindowStyle() {
+    void DesktopWindow::adjustWindowStyle(){
         if (!hwnd) return;
         
-        LONG exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+        LONG exStyle=GetWindowLong(hwnd, GWL_EXSTYLE);
         exStyle |= WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
         
-        if (clickThrough) {
+        if (clickThrough){
             exStyle |= WS_EX_TRANSPARENT;
         }
         else {
@@ -871,8 +872,8 @@ namespace CalendarOverlay {
             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED);
     }
     
-    void DesktopWindow::updateWindowPosition() {
-        if (hwnd) {
+    void DesktopWindow::updateWindowPosition(){
+        if (hwnd){
             SetWindowPos(hwnd, NULL, windowX, windowY, 0, 0, 
                 SWP_NOZORDER | SWP_NOSIZE | SWP_NOACTIVATE);
         }
