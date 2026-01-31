@@ -24,6 +24,7 @@
 #include <dwmapi.h>
 #include <string>
 #include <memory>
+#include <vector>
 #include "shared/calendar_shared.h"
 
 // These constants should be defined in dwmapi.h for Windows 10+
@@ -61,6 +62,10 @@ namespace CalendarOverlay{
         void setSize(int width, int height);
         void setOpacity(float opacity);
         void setClickThrough(bool clickThrough);
+        HWND getHandle() const { return hwnd; }
+        bool isVisible() const { return visible; }
+        int getWidth() const { return windowWidth; }
+        int getHeight() const { return windowHeight; }
         static LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     private:
         bool registerWindowClass();

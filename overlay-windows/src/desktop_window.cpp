@@ -190,7 +190,7 @@ namespace CalendarOverlay {
         createDoubleBuffer(windowWidth, windowHeight);
         
         // Initialize renderer
-        if (!renderer->initialize(hwnd)){
+        if (!renderer->initialize(hwnd, currentDPI)){
             std::cerr << "Failed to initialize renderer" << std::endl;
             return false;
         }
@@ -224,7 +224,7 @@ namespace CalendarOverlay {
         wc.hIcon=LoadIcon(NULL, IDI_APPLICATION);
         wc.hIconSm=LoadIcon(NULL, IDI_APPLICATION);
         
-        return RegisterClassExW(&wc)!=0;
+        return RegisterClassExW(&wc) != 0;
     }
     
     bool DesktopWindow::createWindowInstance(){
@@ -267,7 +267,7 @@ namespace CalendarOverlay {
             if (VerifyVersionInfo(&osvi, VER_MAJORVERSION, dwlConditionMask)){
                 // Enable dark mode if available
                 BOOL darkMode=TRUE;
-                DwmSetWindowAttribute(hwnd, 20, &darkMode, sizeof(darkMode)); // DWMWA_USE_IMMERSIVE_DARK_MODE
+                DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &darkMode, sizeof(darkMode));
                 
                 // Enable rounded corners on Windows 11
                 OSVERSIONINFOEX osvi11={ sizeof(osvi11), 10, 0, 22000 };
@@ -275,8 +275,8 @@ namespace CalendarOverlay {
                 VER_SET_CONDITION(dwlConditionMask11, VER_BUILDNUMBER, VER_GREATER_EQUAL);
                 
                 if (VerifyVersionInfo(&osvi11, VER_BUILDNUMBER, dwlConditionMask11)){
-                    DWORD cornerPref=2; // DWMWCP_ROUND
-                    DwmSetWindowAttribute(hwnd, 33, &cornerPref, sizeof(cornerPref)); // DWMWA_WINDOW_CORNER_PREFERENCE
+                    DWORD cornerPref=DWMWCP_ROUND;
+                    DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &cornerPref, sizeof(cornerPref));
                 }
             }
             FreeLibrary(dwmapi);
@@ -411,6 +411,14 @@ namespace CalendarOverlay {
                     window->onMouseUp(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
                     return 0;
                     
+                case WM_MOUSEWHEEL: {
+                    if (window->renderer){
+                        int delta=GET_WHEEL_DELTA_WPARAM(wParam);
+                        window->renderer->handleMouseWheel(-delta / 120.0f); // Standard wheel delta is 120 per notch
+                    }
+                    return 0;
+                }
+                    
                 case WM_KEYDOWN:
                     window->onKeyDown(wParam);
                     return 0;
@@ -427,7 +435,7 @@ namespace CalendarOverlay {
                     }
                     return 0;
                     
-                case 0x02E0: // WM_DPICHANGED
+                case WM_DPICHANGED:
                     window->onDPIChanged(wParam, lParam);
                     return 0;
                     
@@ -501,8 +509,15 @@ namespace CalendarOverlay {
             cfg.save();
         }
     }
+    
     void DesktopWindow::onMouseDown(int x, int y){
-        bool ctrlDown=(GetKeyState(VK_CONTROL)&0x8000)!=0;
+        bool ctrlDown=(GetKeyState(VK_CONTROL) & 0x8000) != 0;
+        
+        // First, forward to renderer for scrollbar handling
+        if (renderer){
+            renderer->handleMouseDown(x, y);
+        }
+        
         if (ctrlDown){
             dragging=true;
             POINT cursorPos;
@@ -511,11 +526,24 @@ namespace CalendarOverlay {
             dragStartY=cursorPos.y;
             return;
         }
+        
+        // Check if we clicked on scrollbar
+        // If not on scrollbar, launch Java GUI
+        if (renderer){
+            // We'll let the renderer handle scrollbar clicks
+            // If it's not a scrollbar click, launch the GUI
+            // The renderer will set isScrolling if it's a scrollbar click
+        }
         launchJavaGUI();
     }
     
     void DesktopWindow::onMouseUp(int x, int y){
         dragging=false;
+        
+        // Forward to renderer
+        if (renderer){
+            renderer->handleMouseUp(x, y);
+        }
         
         if (clickThrough && hwnd){
             LONG exStyle=GetWindowLong(hwnd, GWL_EXSTYLE);
@@ -552,6 +580,11 @@ namespace CalendarOverlay {
     void DesktopWindow::onDPIChanged(WPARAM wParam, LPARAM lParam){
         if (hasPerMonitorDPIAwareness && hwnd){
             UINT newDPI=HIWORD(wParam);
+            
+            // Update DPI in renderer
+            if (renderer){
+                renderer->onDPIChanged(newDPI);
+            }
             
             // Calculate scale factor
             float scaleFactor=static_cast<float>(newDPI) / static_cast<float>(currentDPI);
@@ -634,23 +667,22 @@ namespace CalendarOverlay {
     }
     
     void DesktopWindow::launchJavaGUI(){
-        // Existing implementation remains the same
         std::wstring javaPath=L"java";
         std::wstring jarPath=L"CalendarApp.jar";
         wchar_t exePath[MAX_PATH];
         GetModuleFileNameW(NULL, exePath, MAX_PATH);
         std::wstring exeDir=exePath;
         size_t lastSlash=exeDir.find_last_of(L"\\/");
-        if (lastSlash!=std::wstring::npos){
+        if (lastSlash != std::wstring::npos){
             exeDir=exeDir.substr(0, lastSlash + 1);
             jarPath=exeDir + L"CalendarApp.jar";
         }
         
         DWORD fileAttrib=GetFileAttributesW(jarPath.c_str());
-        if (fileAttrib == INVALID_FILE_ATTRIBUTES || (fileAttrib&FILE_ATTRIBUTE_DIRECTORY)){
+        if (fileAttrib == INVALID_FILE_ATTRIBUTES || (fileAttrib & FILE_ATTRIBUTE_DIRECTORY)){
             jarPath=L"..\\dist\\CalendarApp.jar";
             fileAttrib=GetFileAttributesW(jarPath.c_str());
-            if (fileAttrib == INVALID_FILE_ATTRIBUTES || (fileAttrib&FILE_ATTRIBUTE_DIRECTORY)){
+            if (fileAttrib == INVALID_FILE_ATTRIBUTES || (fileAttrib & FILE_ATTRIBUTE_DIRECTORY)){
                 std::cerr << "Java JAR not found. Please ensure CalendarApp.jar is in the same directory." << std::endl;
                 return;
             }
@@ -698,7 +730,7 @@ namespace CalendarOverlay {
     void DesktopWindow::updateWindowVisibilityBasedOnDesktop(){
         bool currentlyOnDesktop=checkIfOnDesktop();
         
-        if (currentlyOnDesktop!=isOnDesktop){
+        if (currentlyOnDesktop != isOnDesktop){
             isOnDesktop=currentlyOnDesktop;
             if (isOnDesktop){
                 show();
@@ -775,7 +807,7 @@ namespace CalendarOverlay {
     }
     
     void DesktopWindow::resizeDoubleBuffer(int width, int height){
-        if (width!=bufferWidth || height!=bufferHeight){
+        if (width != bufferWidth || height != bufferHeight){
             createDoubleBuffer(width, height);
         }
     }
@@ -856,10 +888,8 @@ namespace CalendarOverlay {
     
     void DesktopWindow::adjustWindowStyle(){
         if (!hwnd) return;
-        
         LONG exStyle=GetWindowLong(hwnd, GWL_EXSTYLE);
         exStyle |= WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
-        
         if (clickThrough){
             exStyle |= WS_EX_TRANSPARENT;
         }
@@ -871,7 +901,6 @@ namespace CalendarOverlay {
         SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, 
             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED);
     }
-    
     void DesktopWindow::updateWindowPosition(){
         if (hwnd){
             SetWindowPos(hwnd, NULL, windowX, windowY, 0, 0, 

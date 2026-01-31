@@ -43,6 +43,11 @@ namespace CalendarOverlay{
         void setOpacity(float opacity);
         void setPosition(int x, int y);
         void onDPIChanged(UINT newDPI);
+        void handleMouseWheel(float delta);
+        void handleMouseDown(int x, int y);
+        void handleMouseMove(int x, int y);
+        void handleMouseUp(int x, int y);
+        void resetScroll();
     private:
         bool createDeviceResources();
         void releaseDeviceResources();
@@ -52,6 +57,7 @@ namespace CalendarOverlay{
         void drawDateHeader();
         void drawEvent(const CalendarEvent& event, float yPos);
         void drawWallpaperContent();
+        void drawScrollbar();
         D2D1_COLOR_F toColorF(uint32_t color) const;
         D2D1::ColorF toColorF(uint8_t r, uint8_t g, uint8_t b, float a=1.0f) const;
         std::vector<CalendarEvent> getUpcomingEvents(int hours) const;
@@ -73,5 +79,13 @@ namespace CalendarOverlay{
         int framesRendered;
         UINT currentDPI;
         float dpiScale;
+        float scrollOffset;
+        float maxScrollOffset;
+        bool isScrolling;
+        POINT lastMousePos;
+        float scrollbarWidth;
+        bool needsScrollbar;
+        float totalEventsHeight;
+        float visibleHeight;
     };
 }
