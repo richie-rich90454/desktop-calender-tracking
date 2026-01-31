@@ -254,7 +254,7 @@ namespace CalendarOverlay {
         }
         
         // Set transparency
-        SetLayeredWindowAttributes(hwnd, RGB(0, 0, 0), alpha, LWA_ALPHA | LWA_COLORKEY);
+        SetLayeredWindowAttributes(hwnd, 0, 100, LWA_ALPHA);
         
         // Enable modern window effects if available
         HMODULE dwmapi = LoadLibrary(L"dwmapi.dll");
@@ -502,27 +502,14 @@ namespace CalendarOverlay {
         }
     }
     
-    void DesktopWindow::onMouseDown(int x, int y) {
-        if (wallpaperMode) {
-            launchJavaGUI();
-            return;
-        }
-        
-        dragging = true;
-        POINT cursorPos;
-        GetCursorPos(&cursorPos);
-        dragStartX = cursorPos.x;
-        dragStartY = cursorPos.y;
-        
-        // Calculate window position
-        windowX = cursorPos.x - unscaleForDPI(x);
-        windowY = cursorPos.y - unscaleForDPI(y);
-        
-        // Temporarily disable click-through for dragging
-        if (clickThrough && hwnd) {
-            LONG exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
-            exStyle &= ~WS_EX_TRANSPARENT;
-            SetWindowLong(hwnd, GWL_EXSTYLE, exStyle);
+    void DesktopWindow::onMouseDown(int x, int y){
+        launchJavaGUI();
+        if (GetKeyState(VK_CONTROL) & 0x8000) {
+            dragging = true;
+            POINT p;
+            GetCursorPos(&p);
+            dragStartX = p.x;
+            dragStartY = p.y;
         }
     }
     
@@ -838,7 +825,7 @@ namespace CalendarOverlay {
         config.opacity = opacity;
         
         if (hwnd) {
-            SetLayeredWindowAttributes(hwnd, RGB(0, 0, 0), alpha, LWA_ALPHA | LWA_COLORKEY);
+            SetLayeredWindowAttributes(hwnd, 0, 100, LWA_ALPHA);
         }
         
         Config& cfg = Config::getInstance();

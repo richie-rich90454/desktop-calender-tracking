@@ -15,14 +15,15 @@ class JavaBuilder:
         self.lib_dir = self.control_app / "lib"
         self.build_dir = self.project_root / "build"
         self.dist_dir = self.project_root / "dist"
-        
     def clean(self):
-        print("Cleaning build directories...")
+        print("Cleaning Java build directories...")
         if self.build_dir.exists():
             shutil.rmtree(self.build_dir)
-        if self.dist_dir.exists():
-            shutil.rmtree(self.dist_dir)
-        print("Clean complete")
+        jar = self.dist_dir / "CalendarApp.jar"
+        if jar.exists():
+            jar.unlink()
+
+        print("Java clean complete")
         
     def compile(self):
         print("Compiling Java source files...")
