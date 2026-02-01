@@ -44,8 +44,7 @@ let package = Package(
             dependencies: [],
             path: "Sources",
             resources: [
-                .copy("Resources/Info.plist"),
-                .copy("Resources/Assets.xcassets")
+                .copy("Resources/Info.plist")
             ],
             swiftSettings: [
                 // Enable strict concurrency checking for safety

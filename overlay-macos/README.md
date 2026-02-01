@@ -14,7 +14,7 @@ This is a transparent overlay application that displays calendar events on your 
 - **Menu Bar Integration**: Status menu for controlling the overlay (Show/Hide/Exit)
 - **Retina Display Support**: High-resolution rendering for Retina displays
 - **Mojave+ Compatibility**: Supports macOS 10.14 and later
-- **Universal Binary**: Works on both Apple Silicon (M1/M2/M3) and Intel Macs
+- **Universal Binary**: Works on both Apple Silicon (M1/M2/M3+) and Intel Macs
 
 ## Architecture
 
