@@ -1,3 +1,4 @@
 {
-    "cmake.sourceDirectory": "C:/Users/rjian/Desktop/desktop-calendar-tracking/overlay-windows"
+    "cmake.sourceDirectory": "C:/Users/rjian/Desktop/desktop-calendar-tracking/overlay-windows",
+    "swift.sourcekit-lsp.disable": true
 }
