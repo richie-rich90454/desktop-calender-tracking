@@ -1,62 +1,62 @@
 /*
-JavaLauncher.swift - Java GUI launcher for macOS Calendar Overlay
+ * Java GUI launcher for macOS Calendar Overlay.
+ *
+ * Responsibilities:
+ * - Launch the Java control application from macOS
+ * - Handle process execution and error handling
+ * - Manage Java process lifecycle
+ * - Provide status feedback about Java application
+ *
+ * Swift data types used:
+ * - Process for subprocess management
+ * - Pipe for inter-process communication
+ * - FileHandle for file operations
+ * - URL for file path handling
+ *
+ * Swift technologies involved:
+ * - Process API for subprocess execution
+ * - Error handling with try/catch
+ * - File system operations
+ * - Inter-process communication
+ *
+ * Design intent:
+ * This class provides a bridge between the macOS overlay
+ * and the Java control application, allowing seamless
+ * integration between the two platforms.
+ */
 
-This file implements the Java GUI launcher functionality.
-It's the macOS equivalent of the Windows launchJavaGUI() function.
+import Foundation
 
-IMPLEMENTATION NOTES:
-1. Locate Java installation on macOS
-2. Find CalendarApp.jar file
-3. Launch Java process with appropriate arguments
-4. Handle errors and fallback paths
-5. Use Process/NSTask for process execution
-
-WINDOWS EQUIVALENT: DesktopWindow::launchJavaGUI() function in desktop_window.cpp
-
-KEY macOS APIS:
-- Process (NSTask): For launching external processes
-- FileManager: For locating files
-- Bundle: For accessing app resources (if bundled)
-- Pipe/FileHandle: For process output (optional)
-
-JAVA LOCATION STRATEGIES:
-1. Use `/usr/bin/java` (system Java)
-2. Check common Java installation paths
-3. Use `which java` command to find Java
-4. Fallback to user-friendly error messages
-
-JAR FILE LOCATION STRATEGIES:
-1. Same directory as executable
-2. ../dist/CalendarApp.jar relative to executable
-3. ~/.calendarapp/CalendarApp.jar
-4. Bundle resources (if app is bundled)
-
-ADD HERE:
-1. Import Foundation
-2. Define JavaLauncher class or static methods
-3. Implement Java detection methods
-4. Implement JAR file location methods
-5. Implement process launching methods
-6. Add error handling and logging
-*/
-
-// TODO: Add imports for Foundation
-
-// TODO: Define JavaLauncher class (or use static methods)
-// class JavaLauncher {
-//     
-//     // TODO: Add properties
-//     // private static let fileManager = FileManager.default
-//     
-//     // MARK: - Public API
-//     
-//     // TODO: Implement launchJavaGUI() static method
-//     // static func launchJavaGUI() {
-//     //     print("Launching Java GUI...")
-//     //     
-//     //     // Find Java executable
-//     //     guard let javaPath = findJavaPath() else {
-//     //         showErrorAlert(message: "Java not found. Please install Java to run the calendar editor.")
+class JavaLauncher {
+    
+    // MARK: - Properties
+    
+    private static var javaProcess: Process?
+    private static var isJavaRunning = false
+    
+    // MARK: - Java Application Paths
+    
+    private static func getJavaAppPath() -> URL? {
+        // Try to find the Java application in common locations
+        
+        // 1. Check if Java app is bundled with macOS app
+        if let bundlePath = Bundle.main.resourceURL?.appendingPathComponent("control-app") {
+            let jarPath = bundlePath.appendingPathComponent("desktop-calendar.jar")
+            if FileManager.default.fileExists(atPath: jarPath.path) {
+                return jarPath
+            }
+        }
+        
+        // 2. Check in user's home directory
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser
+        let userAppPath = homeDir.appendingPathComponent(".calendarapp/desktop-calendar.jar")
+        if FileManager.default.fileExists(atPath: userAppPath.path) {
+            return userAppPath
+        }
+        
+        // 3. Check in current working directory (for development)
+        let currentDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let devPath = currentDir.appendingPathComponent("control-app/build/desktop-calendar.jar")
 //     //         return
 //     //     }
 //     //     
