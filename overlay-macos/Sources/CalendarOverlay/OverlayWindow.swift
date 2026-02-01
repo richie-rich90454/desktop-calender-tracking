@@ -401,3 +401,54 @@ class OverlayWindow: NSWindow, NSWindowDelegate {
             saveWindowPosition()
         }
     }
+    
+    // MARK: - Additional Utility Methods
+    
+    func getCurrentEvents() -> [CalendarEvent] {
+        return calendarRenderer?.getEvents() ?? []
+    }
+    
+    func getEventCount() -> Int {
+        return calendarRenderer?.getEvents().count ?? 0
+    }
+    
+    func updateWindowPosition(x: Int, y: Int) {
+        guard let screen = NSScreen.main else { return }
+        let screenHeight = screen.frame.height
+        let macY = screenHeight - CGFloat(y) - self.frame.height
+        
+        let newFrame = NSRect(x: CGFloat(x), y: macY, width: self.frame.width, height: self.frame.height)
+        self.setFrame(newFrame, display: true)
+        saveWindowPosition()
+    }
+    
+    func updateWindowSize(width: Int, height: Int) {
+        var newFrame = self.frame
+        newFrame.size.width = CGFloat(width)
+        newFrame.size.height = CGFloat(height)
+        self.setFrame(newFrame, display: true)
+        saveWindowPosition()
+    }
+    
+    func isWindowInteractive() -> Bool {
+        return !clickThroughEnabled && !wallpaperMode
+    }
+    
+    func getCurrentConfig() -> OverlayConfig {
+        return config
+    }
+    
+    func updateConfig(_ newConfig: OverlayConfig) {
+        config = newConfig
+        setOpacity(newConfig.opacity)
+        setClickThrough(newConfig.clickThrough)
+        setWallpaperMode(newConfig.wallpaperMode)
+        
+        // Update window position and size if changed
+        if newConfig.positionX != Int(self.frame.origin.x) || newConfig.positionY != Int(self.frame.origin.y) ||
+           newConfig.width != Int(self.frame.width) || newConfig.height != Int(self.frame.height) {
+            updateWindowPosition(x: newConfig.positionX, y: newConfig.positionY)
+            updateWindowSize(width: newConfig.width, height: newConfig.height)
+        }
+    }
+}
