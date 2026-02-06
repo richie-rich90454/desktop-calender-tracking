@@ -1,23 +1,5 @@
 package audio;
 
-/**
- * Audio playback engine for WAV, MIDI, and MP3 files.
- *
- * Responsibilities:
- * - Play, pause, stop audio playback
- * - Control volume and playback position
- * - Handle multiple audio formats
- * - Manage playback state
- *
- * Java data types used:
- * - Clip (javax.sound.sampled)
- * - Sequencer (javax.sound.midi)
- *
- * Design intent:
- * Unified audio playback interface for different formats.
- * MP3 support via Java Sound API (limited) with fallback.
- */
-import java.io.File;
 import java.io.IOException;
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
