@@ -13,6 +13,7 @@ set(SOURCES
     src/calendar_render.cpp
     src/event_manager.cpp
     src/config.cpp
+    src/audio_player.cpp
 )
 
 set(HEADERS
@@ -99,6 +100,9 @@ target_link_libraries(CalendarOverlay PRIVATE
     # Add these commonly needed libs:
     advapi32
     uuid
+    wmp.lib
+    winmm.lib
+    dsound.lib
 )
 
 # --------------------

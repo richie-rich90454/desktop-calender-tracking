@@ -25,6 +25,7 @@ namespace CalendarOverlay{
     struct OverlayConfig;
 }
 #include <shared/calendar_shared.h>
+#include "audio_player.h"
 #pragma comment(lib, "d2d1.lib")
 #pragma comment(lib, "dwrite.lib")
 
