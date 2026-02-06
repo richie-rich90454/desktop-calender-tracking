@@ -1,11 +1,15 @@
 #include "calendar_render.h"
+#include "audio_player.h"
 #include <wincodec.h>
 #include <sstream>
 #include <iomanip>
 #include <chrono>
 #include <algorithm>
 #include <vector>
+#include <filesystem>
 #pragma comment(lib, "windowscodecs.lib")
+
+namespace fs=std::filesystem;
 
 namespace CalendarOverlay{
     CalendarRenderer::CalendarRenderer() : d2dFactory(nullptr), renderTarget(nullptr), 
@@ -553,7 +557,7 @@ namespace CalendarOverlay{
         scrollOffset=0;
         LeaveCriticalSection(&cs);
     }
-    bool CalendarRenderer::isScrollingActive() const {
+    bool CalendarRenderer::isScrollingActive() const{
         EnterCriticalSection(&cs);
         bool scrolling=isScrolling;
         LeaveCriticalSection(&cs);
