@@ -100,9 +100,13 @@ target_link_libraries(CalendarOverlay PRIVATE
     # Add these commonly needed libs:
     advapi32
     uuid
-    wmp.lib
     winmm.lib
     dsound.lib
+    strmiids.lib
+    mf.lib
+    mfplat.lib
+    mfreadwrite.lib
+    mfuuid.lib
 )
 
 # --------------------

@@ -8,7 +8,9 @@
 #include <comdef.h>
 #include <comutil.h>
 #include <wrl/client.h>
-#include <wmp.h>
+#include <mfapi.h>
+#include <mfidl.h>
+#include <mfreadwrite.h>
 #include <algorithm>
 #include <chrono>
 #include <thread>
@@ -18,6 +20,10 @@
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "comsuppw.lib")
 #pragma comment(lib, "strmiids.lib")
+#pragma comment(lib, "mf.lib")
+#pragma comment(lib, "mfplat.lib")
+#pragma comment(lib, "mfreadwrite.lib")
+#pragma comment(lib, "mfuuid.lib")
 
 namespace fs=std::filesystem;
 
@@ -141,37 +147,98 @@ namespace CalendarOverlay{
         }
         bool AudioPlayerEngine::playMp3(const AudioTrack& track){
             cleanupMp3();
-            HRESULT hr=CoCreateInstance(CLSID_WindowsMediaPlayer, NULL,  CLSCTX_INPROC_SERVER, IID_IWMPPlayer, (void**)&pMediaPlayer);
+            HRESULT hr=CoInitializeEx(NULL, COINIT_MULTITHREADED);
             if (FAILED(hr)){
                 return false;
             }
-            IWMPPlayer* pPlayer=(IWMPPlayer*)pMediaPlayer;
-            _bstr_t bstrPath(track.filePath.c_str());
-            hr=pPlayer->put_URL(bstrPath);
+            hr=MFStartup(MF_VERSION, MFSTARTUP_LITE);
             if (FAILED(hr)){
-                pPlayer->Release();
-                pMediaPlayer=nullptr;
+                CoUninitialize();
                 return false;
             }
-            IWMPControls* pControls=NULL;
-            hr=pPlayer->get_controls(&pControls);
+            IMFMediaSession* pSession=NULL;
+            IMFMediaSource* pSource=NULL;
+            IMFTopology* pTopology=NULL;
+            hr=MFCreateMediaSession(NULL, &pSession);
             if (SUCCEEDED(hr)){
-                hr=pControls->play();
-                pControls->Release();
+                hr=MFCreateSourceReaderFromURL(track.filePath.c_str(), NULL, (IMFSourceReader**)&pSource);
             }
-            IWMPSettings* pSettings=NULL;
-            hr=pPlayer->get_settings(&pSettings);
             if (SUCCEEDED(hr)){
-                pSettings->put_volume((long)(volume * 100));
-                pSettings->Release();
+                hr=MFCreateTopology(&pTopology);
             }
-            if (FAILED(hr)){
-                pPlayer->Release();
-                pMediaPlayer=nullptr;
-                return false;
+            if (SUCCEEDED(hr)){
+                IMFPresentationDescriptor* pPresDesc=NULL;
+                hr=((IMFMediaSource*)pSource)->CreatePresentationDescriptor(&pPresDesc);
+                if (SUCCEEDED(hr)){
+                    DWORD streamCount=0;
+                    hr=pPresDesc->GetStreamDescriptorCount(&streamCount);
+                    for (DWORD i=0; i<streamCount&&SUCCEEDED(hr); ++i){
+                        BOOL selected=FALSE;
+                        IMFStreamDescriptor* pStreamDesc=NULL;
+                        hr=pPresDesc->GetStreamDescriptorByIndex(i, &selected, &pStreamDesc);
+                        if (SUCCEEDED(hr)&&selected){
+                            IMFTopologyNode* pSourceNode=NULL;
+                            IMFTopologyNode* pOutputNode=NULL;
+                            hr=MFCreateTopologyNode(MF_TOPOLOGY_SOURCESTREAM_NODE, &pSourceNode);
+                            if (SUCCEEDED(hr)){
+                                hr=pSourceNode->SetUnknown(MF_TOPONODE_SOURCE, pSource);
+                            }
+                            if (SUCCEEDED(hr)){
+                                hr=pSourceNode->SetUnknown(MF_TOPONODE_PRESENTATION_DESCRIPTOR, pPresDesc);
+                            }
+                            if (SUCCEEDED(hr)){
+                                hr=pSourceNode->SetUnknown(MF_TOPONODE_STREAM_DESCRIPTOR, pStreamDesc);
+                            }
+                            if (SUCCEEDED(hr)){
+                                hr=MFCreateTopologyNode(MF_TOPOLOGY_OUTPUT_NODE, &pOutputNode);
+                            }
+                            if (SUCCEEDED(hr)){
+                                IMFActivate* pActivate=NULL;
+                                hr=MFCreateAudioRendererActivate(&pActivate);
+                                if (SUCCEEDED(hr)){
+                                    hr=pOutputNode->SetObject(pActivate);
+                                    pActivate->Release();
+                                }
+                            }
+                            if (SUCCEEDED(hr)){
+                                hr=pTopology->AddNode(pSourceNode);
+                            }
+                            if (SUCCEEDED(hr)){
+                                hr=pTopology->AddNode(pOutputNode);
+                            }
+                            if (SUCCEEDED(hr)){
+                                hr=pSourceNode->ConnectOutput(0, pOutputNode, 0);
+                            }
+                            if (pSourceNode) pSourceNode->Release();
+                            if (pOutputNode) pOutputNode->Release();
+                        }
+                        if (pStreamDesc) pStreamDesc->Release();
+                    }
+                }
+                if (pPresDesc) pPresDesc->Release();
             }
-            currentTrack.duration=0;
-            return true;
+            if (SUCCEEDED(hr)){
+                hr=pSession->SetTopology(0, pTopology);
+            }
+            if (SUCCEEDED(hr)){
+                PROPVARIANT varStart;
+                PropVariantInit(&varStart);
+                varStart.vt=VT_I8;
+                varStart.hVal.QuadPart=0;
+                hr=pSession->Start(NULL, &varStart);
+                PropVariantClear(&varStart);
+            }
+            if (SUCCEEDED(hr)){
+                pMediaPlayer=(IUnknown*)pSession;
+                currentTrack.duration=0;
+                return true;
+            }
+            if (pTopology) pTopology->Release();
+            if (pSource) ((IMFMediaSource*)pSource)->Release();
+            if (pSession) pSession->Release();
+            MFShutdown();
+            CoUninitialize();
+            return false;
         }
         bool AudioPlayerEngine::playMidi(const AudioTrack& track){
             cleanupMidi();
@@ -259,13 +326,8 @@ namespace CalendarOverlay{
                 hMidiOut=nullptr;
             }
             else if (ext==L"mp3"&&pMediaPlayer){
-                IWMPPlayer* pPlayer=(IWMPPlayer*)pMediaPlayer;
-                IWMPControls* pControls=NULL;
-                HRESULT hr=pPlayer->get_controls(&pControls);
-                if (SUCCEEDED(hr)){
-                    pControls->pause();
-                    pControls->Release();
-                }
+                IMFMediaSession* pSession=(IMFMediaSession*)pMediaPlayer;
+                pSession->Pause();
             }
             playbackState=PlaybackState::PAUSED;
             currentTrack.playing=false;
@@ -282,13 +344,13 @@ namespace CalendarOverlay{
                 waveOutRestart(hWaveOut);
             }
             else if (ext==L"mp3"&&pMediaPlayer){
-                IWMPPlayer* pPlayer=(IWMPPlayer*)pMediaPlayer;
-                IWMPControls* pControls=NULL;
-                HRESULT hr=pPlayer->get_controls(&pControls);
-                if (SUCCEEDED(hr)){
-                    pControls->play();
-                    pControls->Release();
-                }
+                IMFMediaSession* pSession=(IMFMediaSession*)pMediaPlayer;
+                PROPVARIANT varStart;
+                PropVariantInit(&varStart);
+                varStart.vt=VT_I8;
+                varStart.hVal.QuadPart=0;
+                pSession->Start(NULL, &varStart);
+                PropVariantClear(&varStart);
             }
             else{
                 return play(currentTrack);
@@ -352,12 +414,12 @@ namespace CalendarOverlay{
                 waveOutSetVolume(hWaveOut, MAKELONG(dwVolume, dwVolume));
             }
             else if (ext==L"mp3"&&pMediaPlayer){
-                IWMPPlayer* pPlayer=(IWMPPlayer*)pMediaPlayer;
-                IWMPSettings* pSettings=NULL;
-                HRESULT hr=pPlayer->get_settings(&pSettings);
+                IMFMediaSession* pSession=(IMFMediaSession*)pMediaPlayer;
+                IMFSimpleAudioVolume* pAudioVolume=NULL;
+                HRESULT hr=pSession->QueryInterface(IID_PPV_ARGS(&pAudioVolume));
                 if (SUCCEEDED(hr)){
-                    pSettings->put_volume((long)(volume * 100));
-                    pSettings->Release();
+                    pAudioVolume->SetMasterVolume(volume);
+                    pAudioVolume->Release();
                 }
             }
             return true;
@@ -372,17 +434,32 @@ namespace CalendarOverlay{
                     waveOutSetVolume(hWaveOut, 0);
                 }
                 else if (ext==L"mp3"&&pMediaPlayer){
-                    IWMPPlayer* pPlayer=(IWMPPlayer*)pMediaPlayer;
-                    IWMPSettings* pSettings=NULL;
-                    HRESULT hr=pPlayer->get_settings(&pSettings);
+                    IMFMediaSession* pSession=(IMFMediaSession*)pMediaPlayer;
+                    IMFSimpleAudioVolume* pAudioVolume=NULL;
+                    HRESULT hr=pSession->QueryInterface(IID_PPV_ARGS(&pAudioVolume));
                     if (SUCCEEDED(hr)){
-                        pSettings->put_volume(0);
-                        pSettings->Release();
+                        pAudioVolume->SetMute(TRUE);
+                        pAudioVolume->Release();
                     }
                 }
             }
             else{
-                return setVolume(volume);
+                std::wstring ext=currentTrack.fileExtension;
+                for (wchar_t& c : ext) c=towlower(c);
+                if (ext==L"wav"&&hWaveOut){
+                    DWORD dwVolume=(DWORD)(volume * 0xFFFF);
+                    waveOutSetVolume(hWaveOut, MAKELONG(dwVolume, dwVolume));
+                }
+                else if (ext==L"mp3"&&pMediaPlayer){
+                    IMFMediaSession* pSession=(IMFMediaSession*)pMediaPlayer;
+                    IMFSimpleAudioVolume* pAudioVolume=NULL;
+                    HRESULT hr=pSession->QueryInterface(IID_PPV_ARGS(&pAudioVolume));
+                    if (SUCCEEDED(hr)){
+                        pAudioVolume->SetMute(FALSE);
+                        pAudioVolume->SetMasterVolume(volume);
+                        pAudioVolume->Release();
+                    }
+                }
             }
             return true;
         }
@@ -430,15 +507,13 @@ namespace CalendarOverlay{
         }
         void AudioPlayerEngine::cleanupMp3(){
             if (pMediaPlayer){
-                IWMPPlayer* pPlayer=(IWMPPlayer*)pMediaPlayer;
-                IWMPControls* pControls=NULL;
-                HRESULT hr=pPlayer->get_controls(&pControls);
-                if (SUCCEEDED(hr)){
-                    pControls->stop();
-                    pControls->Release();
-                }
-                pPlayer->Release();
+                IMFMediaSession* pSession=(IMFMediaSession*)pMediaPlayer;
+                pSession->Stop();
+                pSession->Close();
+                pSession->Release();
                 pMediaPlayer=nullptr;
+                MFShutdown();
+                CoUninitialize();
             }
         }
         void AudioPlayerEngine::cleanupMidi(){
