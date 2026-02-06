@@ -8,6 +8,7 @@
 #include <comdef.h>
 #include <comutil.h>
 #include <wrl/client.h>
+#include <wmp.h>
 #include <algorithm>
 #include <chrono>
 #include <thread>
@@ -16,6 +17,7 @@
 
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "comsuppw.lib")
+#pragma comment(lib, "strmiids.lib")
 
 namespace fs=std::filesystem;
 
@@ -45,7 +47,7 @@ namespace CalendarOverlay{
             if (ext.empty()&&!track.filePath.empty()){
                 size_t dotPos=track.filePath.find_last_of(L'.');
                 if (dotPos!=std::wstring::npos){
-                    ext=track.filePath.substr(dotPos+1);
+                    ext=track.filePath.substr(dotPos + 1);
                 }
             }
             for (wchar_t& c : ext) c=towlower(c);
@@ -139,22 +141,47 @@ namespace CalendarOverlay{
         }
         bool AudioPlayerEngine::playMp3(const AudioTrack& track){
             cleanupMp3();
-            std::wstring command=L"start /min wmplayer \""+track.filePath+L"\"";
-            int result=_wsystem(command.c_str());
-            if (result==0){
-                currentTrack.duration=0;
-                return true;
+            HRESULT hr=CoCreateInstance(CLSID_WindowsMediaPlayer, NULL,  CLSCTX_INPROC_SERVER, IID_IWMPPlayer, (void**)&pMediaPlayer);
+            if (FAILED(hr)){
+                return false;
             }
-            return false;
+            IWMPPlayer* pPlayer=(IWMPPlayer*)pMediaPlayer;
+            _bstr_t bstrPath(track.filePath.c_str());
+            hr=pPlayer->put_URL(bstrPath);
+            if (FAILED(hr)){
+                pPlayer->Release();
+                pMediaPlayer=nullptr;
+                return false;
+            }
+            IWMPControls* pControls=NULL;
+            hr=pPlayer->get_controls(&pControls);
+            if (SUCCEEDED(hr)){
+                hr=pControls->play();
+                pControls->Release();
+            }
+            IWMPSettings* pSettings=NULL;
+            hr=pPlayer->get_settings(&pSettings);
+            if (SUCCEEDED(hr)){
+                pSettings->put_volume((long)(volume * 100));
+                pSettings->Release();
+            }
+            if (FAILED(hr)){
+                pPlayer->Release();
+                pMediaPlayer=nullptr;
+                return false;
+            }
+            currentTrack.duration=0;
+            return true;
         }
         bool AudioPlayerEngine::playMidi(const AudioTrack& track){
             cleanupMidi();
-            MMRESULT result=midiOutOpen(&hMidiOut, MIDI_MAPPER, 0, 0, CALLBACK_NULL);
+            UINT deviceId=MIDI_MAPPER;
+            MMRESULT result=midiOutOpen((LPHMIDIOUT)&hMidiOut, deviceId, 0, 0, CALLBACK_NULL);
             if (result!=MMSYSERR_NOERROR){
                 return false;
             }
             HMIDISTRM hMidiStream;
-            result=midiStreamOpen(&hMidiStream, &hMidiOut, 1, 0, 0, CALLBACK_NULL);
+            result=midiStreamOpen(&hMidiStream, (LPHMIDIOUT)&hMidiOut, 1, 0, 0, CALLBACK_NULL);
             if (result!=MMSYSERR_NOERROR){
                 midiOutClose(hMidiOut);
                 hMidiOut=nullptr;
@@ -215,6 +242,7 @@ namespace CalendarOverlay{
                 return false;
             }
             currentTrack.duration=120000;
+            
             return true;
         }
         bool AudioPlayerEngine::pause(){
@@ -232,14 +260,12 @@ namespace CalendarOverlay{
                 hMidiOut=nullptr;
             }
             else if (ext==L"mp3"&&pMediaPlayer){
-                try{
-                    Microsoft::WRL::ComPtr<IUnknown> spUnknown(pMediaPlayer);
-                    Microsoft::WRL::ComPtr<IWMPPlayer> spPlayer;
-                    if (SUCCEEDED(spUnknown.As(&spPlayer))){
-                        spPlayer->put_controls(L"pause");
-                    }
-                }
-                catch (...){
+                IWMPPlayer* pPlayer=(IWMPPlayer*)pMediaPlayer;
+                IWMPControls* pControls=NULL;
+                HRESULT hr=pPlayer->get_controls(&pControls);
+                if (SUCCEEDED(hr)){
+                    pControls->pause();
+                    pControls->Release();
                 }
             }
             playbackState=PlaybackState::PAUSED;
@@ -257,14 +283,12 @@ namespace CalendarOverlay{
                 waveOutRestart(hWaveOut);
             }
             else if (ext==L"mp3"&&pMediaPlayer){
-                try{
-                    Microsoft::WRL::ComPtr<IUnknown> spUnknown(pMediaPlayer);
-                    Microsoft::WRL::ComPtr<IWMPPlayer> spPlayer;
-                    if (SUCCEEDED(spUnknown.As(&spPlayer))){
-                        spPlayer->put_controls(L"play");
-                    }
-                }
-                catch (...){
+                IWMPPlayer* pPlayer=(IWMPPlayer*)pMediaPlayer;
+                IWMPControls* pControls=NULL;
+                HRESULT hr=pPlayer->get_controls(&pControls);
+                if (SUCCEEDED(hr)){
+                    pControls->play();
+                    pControls->Release();
                 }
             }
             else{
@@ -302,11 +326,11 @@ namespace CalendarOverlay{
             for (wchar_t& c : ext) c=towlower(c);
             if (ext==L"wav"&&hWaveOut){
                 DWORD bytePosition=(DWORD)((double)positionMillis/1000.0 * waveFormat.nAvgBytesPerSec);
-                bytePosition=min(bytePosition, (DWORD)waveBuffer.size());
+                bytePosition=std::min(bytePosition, (DWORD)waveBuffer.size());
                 waveOutReset(hWaveOut);
                 WAVEHDR waveHeader;
                 ZeroMemory(&waveHeader, sizeof(WAVEHDR));
-                waveHeader.lpData=waveBuffer.data()+bytePosition;
+                waveHeader.lpData=waveBuffer.data() + bytePosition;
                 waveHeader.dwBufferLength=(DWORD)waveBuffer.size() - bytePosition;
                 waveHeader.dwFlags=0;
                 waveOutPrepareHeader(hWaveOut, &waveHeader, sizeof(WAVEHDR));
@@ -318,7 +342,7 @@ namespace CalendarOverlay{
         }
         bool AudioPlayerEngine::setVolume(float newVolume){
             std::lock_guard<std::mutex> lock(stateMutex);
-            volume=max(0.0f, min(1.0f, newVolume));
+            volume=std::max(0.0f, std::min(1.0f, newVolume));
             if (muted){
                 return true;
             }
@@ -329,15 +353,12 @@ namespace CalendarOverlay{
                 waveOutSetVolume(hWaveOut, MAKELONG(dwVolume, dwVolume));
             }
             else if (ext==L"mp3"&&pMediaPlayer){
-                try{
-                    Microsoft::WRL::ComPtr<IUnknown> spUnknown(pMediaPlayer);
-                    Microsoft::WRL::ComPtr<IWMPPlayer> spPlayer;
-                    if (SUCCEEDED(spUnknown.As(&spPlayer))){
-                        spPlayer->put_volume((long)(volume * 100));
-                    }
-                }
-                catch (...){
-
+                IWMPPlayer* pPlayer=(IWMPPlayer*)pMediaPlayer;
+                IWMPSettings* pSettings=NULL;
+                HRESULT hr=pPlayer->get_settings(&pSettings);
+                if (SUCCEEDED(hr)){
+                    pSettings->put_volume((long)(volume * 100));
+                    pSettings->Release();
                 }
             }
             return true;
@@ -352,15 +373,12 @@ namespace CalendarOverlay{
                     waveOutSetVolume(hWaveOut, 0);
                 }
                 else if (ext==L"mp3"&&pMediaPlayer){
-                    try{
-                        Microsoft::WRL::ComPtr<IUnknown> spUnknown(pMediaPlayer);
-                        Microsoft::WRL::ComPtr<IWMPPlayer> spPlayer;
-                        if (SUCCEEDED(spUnknown.As(&spPlayer))){
-                            spPlayer->put_volume(0);
-                        }
-                    }
-                    catch (...){
-
+                    IWMPPlayer* pPlayer=(IWMPPlayer*)pMediaPlayer;
+                    IWMPSettings* pSettings=NULL;
+                    HRESULT hr=pPlayer->get_settings(&pSettings);
+                    if (SUCCEEDED(hr)){
+                        pSettings->put_volume(0);
+                        pSettings->Release();
                     }
                 }
             }
@@ -413,17 +431,14 @@ namespace CalendarOverlay{
         }
         void AudioPlayerEngine::cleanupMp3(){
             if (pMediaPlayer){
-                try{
-                    Microsoft::WRL::ComPtr<IUnknown> spUnknown(pMediaPlayer);
-                    Microsoft::WRL::ComPtr<IWMPPlayer> spPlayer;
-                    if (SUCCEEDED(spUnknown.As(&spPlayer))){
-                        spPlayer->controls->stop();
-                    }
+                IWMPPlayer* pPlayer=(IWMPPlayer*)pMediaPlayer;
+                IWMPControls* pControls=NULL;
+                HRESULT hr=pPlayer->get_controls(&pControls);
+                if (SUCCEEDED(hr)){
+                    pControls->stop();
+                    pControls->Release();
                 }
-                catch (...){
-
-                }
-                pMediaPlayer->Release();
+                pPlayer->Release();
                 pMediaPlayer=nullptr;
             }
         }
@@ -449,7 +464,6 @@ namespace CalendarOverlay{
             }
         }
         AudioFileManager::~AudioFileManager(){
-
         }
         std::vector<AudioTrack> AudioFileManager::scanAudioFiles(){
             std::vector<AudioTrack> tracks;
@@ -532,7 +546,6 @@ namespace CalendarOverlay{
             std::wstring fileName=fs::path(sourcePath).filename().wstring();
             std::wstring uniqueName=getUniqueFileName(fileName);
             destPath=audioDirectory+L"\\"+uniqueName;
-            
             return CopyFileW(sourcePath.c_str(), destPath.c_str(), FALSE)!=0;
         }
         AudioTrack AudioFileManager::createTrackFromFile(const std::wstring& filePath, int trackNumber){
