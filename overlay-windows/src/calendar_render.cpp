@@ -20,10 +20,16 @@ namespace CalendarOverlay{
         currentDPI(96), dpiScale(1.0f),
         scrollOffset(0.0f), maxScrollOffset(0.0f), isScrolling(false),
         scrollbarWidth(8.0f), needsScrollbar(false),
-        totalEventsHeight(0.0f), visibleHeight(0.0f){
+        totalEventsHeight(0.0f), visibleHeight(0.0f),
+        currentAudioTrackIndex(-1), audioControlsVisible(true), 
+        audioControlsHeight(60.0f), audioProgress(0.0f), 
+        isDraggingAudioProgress(false){
         InitializeCriticalSection(&cs);
         lastMousePos.x=0;
         lastMousePos.y=0;
+        audioPlayer=std::make_unique<Audio::AudioPlayerEngine>();
+        audioFileManager=std::make_unique<Audio::AudioFileManager>();
+        scanAudioFiles();
     }
     CalendarRenderer::~CalendarRenderer(){
         cleanup();
@@ -61,7 +67,7 @@ namespace CalendarOverlay{
                 L"Segoe UI", NULL, 
                 DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, 
                 DWRITE_FONT_STRETCH_NORMAL, 
-                (baseFontSize + 4) * dpiScale, 
+                (baseFontSize+4) * dpiScale, 
                 L"en-us", &titleFormat);
             writeFactory->CreateTextFormat(
                 L"Segoe UI", NULL, 
@@ -85,7 +91,7 @@ namespace CalendarOverlay{
         if (writeFactory){
             float scaledFontSize=config.fontSize * dpiScale;
             writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_SEMI_LIGHT, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, scaledFontSize, L"en-us", &textFormat);
-            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_SEMI_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, scaledFontSize + 3 * dpiScale, L"en-us", &titleFormat); 
+            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_SEMI_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, scaledFontSize+3 * dpiScale, L"en-us", &titleFormat); 
             writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_LIGHT, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, scaledFontSize - 1 * dpiScale, L"en-us", &timeFormat);
             if (textFormat){
                 textFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
@@ -210,7 +216,7 @@ namespace CalendarOverlay{
         float startY=padding+50.0f;
         float currentY=startY;
         auto upcomingEvents=getUpcomingEvents(24);
-        totalEventsHeight=static_cast<float>(upcomingEvents.size()) * (eventHeight + 5.0f);
+        totalEventsHeight=static_cast<float>(upcomingEvents.size()) * (eventHeight+5.0f);
         visibleHeight=renderSize.height - startY - padding - 25.0f; // Subtract bottom padding and time display
         needsScrollbar=(totalEventsHeight > visibleHeight);
         if (needsScrollbar){
@@ -225,15 +231,15 @@ namespace CalendarOverlay{
             scrollOffset=0;
             maxScrollOffset=0;
         }
-        float visibleTop=padding + 50.0f;
+        float visibleTop=padding+50.0f;
         float visibleBottom=renderSize.height - padding - 25.0f;
         for (const auto& event : upcomingEvents){
             float eventTop=currentY;
-            float eventBottom=currentY + eventHeight;
-            if (eventBottom > visibleTop && eventTop < visibleBottom){
+            float eventBottom=currentY+eventHeight;
+            if (eventBottom > visibleTop&&eventTop<visibleBottom){
                 drawEvent(event, currentY);
             }
-            currentY+=eventHeight + 5.0f;
+            currentY+=eventHeight+5.0f;
             if (currentY > visibleBottom){
                 break;
             }
@@ -245,7 +251,7 @@ namespace CalendarOverlay{
         }
         float eventRight=renderSize.width - padding;
         if (needsScrollbar){
-            eventRight -= scrollbarWidth + 5.0f;
+            eventRight -= scrollbarWidth+5.0f;
         }
         auto now=std::chrono::system_clock::now();
         auto nowMs=std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
@@ -255,10 +261,10 @@ namespace CalendarOverlay{
         if (timeSinceEnd > 0){
             eventColor=D2D1::ColorF(0.7f, 0.7f, 0.7f, 0.7f);
         } 
-        else if (nowMs >= event.startTime && nowMs <= event.endTime){
+        else if (nowMs>=event.startTime&&nowMs <= event.endTime){
             eventColor=D2D1::ColorF(1.0f, 0.0f, 0.0f, 0.7f);
         }
-        else if (timeUntilStart > 0 && timeUntilStart <= 3600000){
+        else if (timeUntilStart > 0&&timeUntilStart <= 3600000){
             eventColor=D2D1::ColorF(1.0f, 0.5f, 0.0f, 0.7f);
         }
         else{
@@ -294,7 +300,7 @@ namespace CalendarOverlay{
             return;
         }
         float scrollbarX=renderSize.width - padding - scrollbarWidth;
-        float scrollAreaTop=padding + 50.0f;
+        float scrollAreaTop=padding+50.0f;
         float scrollAreaBottom=renderSize.height - padding - 25.0f;
         float scrollAreaHeight=scrollAreaBottom - scrollAreaTop;
         ID2D1SolidColorBrush* trackBrush;
@@ -302,15 +308,15 @@ namespace CalendarOverlay{
         D2D1_RECT_F trackRect=D2D1::RectF(
             scrollbarX,
             scrollAreaTop,
-            scrollbarX + scrollbarWidth,
+            scrollbarX+scrollbarWidth,
             scrollAreaBottom
         );
         renderTarget->FillRectangle(trackRect, trackBrush);
         trackBrush->Release();
         float thumbHeight=(visibleHeight/totalEventsHeight) * scrollAreaHeight;
-        if (thumbHeight < 20.0f) thumbHeight=20.0f;
-        float thumbTop=scrollAreaTop + (scrollOffset/totalEventsHeight) * scrollAreaHeight;
-        float thumbBottom=thumbTop + thumbHeight;
+        if (thumbHeight<20.0f) thumbHeight=20.0f;
+        float thumbTop=scrollAreaTop+(scrollOffset/totalEventsHeight) * scrollAreaHeight;
+        float thumbBottom=thumbTop+thumbHeight;
         if (thumbBottom > scrollAreaBottom){
             thumbTop=scrollAreaBottom - thumbHeight;
             thumbBottom=scrollAreaBottom;
@@ -320,7 +326,7 @@ namespace CalendarOverlay{
         D2D1_RECT_F thumbRect=D2D1::RectF(
             scrollbarX,
             thumbTop,
-            scrollbarX + scrollbarWidth,
+            scrollbarX+scrollbarWidth,
             thumbBottom
         );
         renderTarget->FillRectangle(thumbRect, thumbBrush);
@@ -381,16 +387,16 @@ namespace CalendarOverlay{
             long long timeSinceEnd=nowMs - event.endTime;
             float dotSize=6.0f;
             D2D1_ELLIPSE statusDot=D2D1::Ellipse(
-                D2D1::Point2F(contentRect.left + 10.0f, eventStartY + 10.0f),
+                D2D1::Point2F(contentRect.left+10.0f, eventStartY+10.0f),
                 dotSize, dotSize
             );
             if (timeSinceEnd > 0){
                 eventBrush->SetColor(D2D1::ColorF(0.7f, 0.7f, 0.7f, 0.7f));
             } 
-            else if (nowMs >= event.startTime && nowMs <= event.endTime){
+            else if (nowMs>=event.startTime&&nowMs <= event.endTime){
                 eventBrush->SetColor(D2D1::ColorF(1.0f, 0.0f, 0.0f, 0.7f));
             }
-            else if (timeUntilStart > 0 && timeUntilStart <= 3600000){
+            else if (timeUntilStart > 0&&timeUntilStart <= 3600000){
                 eventBrush->SetColor(D2D1::ColorF(1.0f, 0.5f, 0.0f, 0.7f));
             }
             else{
@@ -447,7 +453,7 @@ namespace CalendarOverlay{
             }
             float scaledFontSize=config.fontSize * dpiScale;
             writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, scaledFontSize, L"en-us", &textFormat);
-            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, scaledFontSize + 2 * dpiScale, L"en-us", &titleFormat);
+            writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, scaledFontSize+2 * dpiScale, L"en-us", &titleFormat);
             writeFactory->CreateTextFormat(L"Segoe UI", NULL, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_ITALIC, DWRITE_FONT_STRETCH_NORMAL, scaledFontSize - 2 * dpiScale, L"en-us", &timeFormat);
         }
         LeaveCriticalSection(&cs);
@@ -503,7 +509,7 @@ namespace CalendarOverlay{
         if (needsScrollbar){
             float scrollSpeed=eventHeight * 3;
             scrollOffset+=delta * scrollSpeed;
-            if (scrollOffset < 0) scrollOffset=0;
+            if (scrollOffset<0) scrollOffset=0;
             if (scrollOffset > maxScrollOffset) scrollOffset=maxScrollOffset;
             if (hwnd){
                 InvalidateRect(hwnd, NULL, FALSE);
@@ -517,12 +523,12 @@ namespace CalendarOverlay{
             float scrollbarX=renderSize.width - padding - scrollbarWidth;
             D2D1_RECT_F scrollbarRect=D2D1::RectF(
                 scrollbarX,
-                padding + 50.0f,
-                scrollbarX + scrollbarWidth,
+                padding+50.0f,
+                scrollbarX+scrollbarWidth,
                 renderSize.height - padding - 25.0f
             );
-            if (x >= scrollbarRect.left && x <= scrollbarRect.right &&
-                y >= scrollbarRect.top && y <= scrollbarRect.bottom){
+            if (x>=scrollbarRect.left&&x <= scrollbarRect.right &&
+                y>=scrollbarRect.top&&y <= scrollbarRect.bottom){
                 isScrolling=true;
                 lastMousePos.x=x;
                 lastMousePos.y=y;
@@ -532,12 +538,12 @@ namespace CalendarOverlay{
     }
     void CalendarRenderer::handleMouseMove(int x, int y){
         EnterCriticalSection(&cs);
-        if (isScrolling && needsScrollbar){
+        if (isScrolling&&needsScrollbar){
             float deltaY=static_cast<float>(y - lastMousePos.y);
-            float scrollAreaHeight=(renderSize.height - padding - 25.0f) - (padding + 50.0f);
+            float scrollAreaHeight=(renderSize.height - padding - 25.0f) - (padding+50.0f);
             float scrollRatio=deltaY/scrollAreaHeight;
             scrollOffset+=scrollRatio * totalEventsHeight;
-            if (scrollOffset < 0) scrollOffset=0;
+            if (scrollOffset<0) scrollOffset=0;
             if (scrollOffset > maxScrollOffset) scrollOffset=maxScrollOffset;
             lastMousePos.x=x;
             lastMousePos.y=y;
@@ -562,5 +568,139 @@ namespace CalendarOverlay{
         bool scrolling=isScrolling;
         LeaveCriticalSection(&cs);
         return scrolling;
+    }
+    void CalendarRenderer::toggleAudioPlayback(){
+        EnterCriticalSection(&cs);
+        if (audioPlayer){
+            if (audioPlayer->isPlaying()){
+                audioPlayer->pause();
+            }
+            else if (audioPlayer->isPaused()){
+                audioPlayer->resume();
+            }
+            else if (currentAudioTrackIndex>=0&&currentAudioTrackIndex<(int)audioTracks.size()){
+                audioPlayer->play(audioTracks[currentAudioTrackIndex]);
+            }
+        }
+        LeaveCriticalSection(&cs);
+    }
+    void CalendarRenderer::playNextTrack(){
+        EnterCriticalSection(&cs);
+        if (audioTracks.empty()){
+            LeaveCriticalSection(&cs);
+            return;
+        }
+        if (currentAudioTrackIndex<0){
+            currentAudioTrackIndex=0;
+        }
+        else{
+            currentAudioTrackIndex=(currentAudioTrackIndex+1)%audioTracks.size();
+        }
+        if (audioPlayer){
+            audioPlayer->stop();
+            audioPlayer->play(audioTracks[currentAudioTrackIndex]);
+        }
+        LeaveCriticalSection(&cs);
+    }
+    void CalendarRenderer::playPreviousTrack(){
+        EnterCriticalSection(&cs);
+        if (audioTracks.empty()){
+            LeaveCriticalSection(&cs);
+            return;
+        }
+        if (currentAudioTrackIndex<0){
+            currentAudioTrackIndex=0;
+        }
+        else{
+            currentAudioTrackIndex=(currentAudioTrackIndex - 1+audioTracks.size())%audioTracks.size();
+        }
+        if (audioPlayer){
+            audioPlayer->stop();
+            audioPlayer->play(audioTracks[currentAudioTrackIndex]);
+        }
+        LeaveCriticalSection(&cs);
+    }
+    void CalendarRenderer::setAudioVolume(float volume){
+        EnterCriticalSection(&cs);
+        if (audioPlayer){
+            audioPlayer->setVolume(volume);
+        }
+        LeaveCriticalSection(&cs);
+    }
+    float CalendarRenderer::getAudioVolume() const{
+        EnterCriticalSection(&cs);
+        float volume=0.5f;
+        if (audioPlayer){
+            volume=audioPlayer->getVolume();
+        }
+        LeaveCriticalSection(&cs);
+        return volume;
+    }
+    bool CalendarRenderer::isAudioPlaying() const{
+        EnterCriticalSection(&cs);
+        bool playing=false;
+        if (audioPlayer){
+            playing=audioPlayer->isPlaying();
+        }
+        LeaveCriticalSection(&cs);
+        return playing;
+    }
+    std::wstring CalendarRenderer::getCurrentAudioTrack() const{
+        EnterCriticalSection(&cs);
+        std::wstring trackName=L"";
+        if (currentAudioTrackIndex>=0&&currentAudioTrackIndex<(int)audioTracks.size()){
+            trackName=audioTracks[currentAudioTrackIndex].displayName;
+        }
+        LeaveCriticalSection(&cs);
+        return trackName;
+    }
+    void CalendarRenderer::scanAudioFiles(){
+        EnterCriticalSection(&cs);
+        if (audioFileManager){
+            audioTracks=audioFileManager->scanAudioFiles();
+            if (!audioTracks.empty()&&currentAudioTrackIndex<0){
+                currentAudioTrackIndex=0;
+            }
+        }
+        LeaveCriticalSection(&cs);
+    }
+    void CalendarRenderer::playAudioTrack(int index){
+        EnterCriticalSection(&cs);
+        if (index>=0&&index<(int)audioTracks.size()){
+            currentAudioTrackIndex=index;
+            if (audioPlayer){
+                audioPlayer->stop();
+                audioPlayer->play(audioTracks[index]);
+            }
+        }
+        LeaveCriticalSection(&cs);
+    }
+    void CalendarRenderer::stopAudioPlayback(){
+        EnterCriticalSection(&cs);
+        if (audioPlayer){
+            audioPlayer->stop();
+        }
+        LeaveCriticalSection(&cs);
+    }
+    void CalendarRenderer::pauseAudioPlayback(){
+        EnterCriticalSection(&cs);
+        if (audioPlayer){
+            audioPlayer->pause();
+        }
+        LeaveCriticalSection(&cs);
+    }
+    void CalendarRenderer::resumeAudioPlayback(){
+        EnterCriticalSection(&cs);
+        if (audioPlayer){
+            audioPlayer->resume();
+        }
+        LeaveCriticalSection(&cs);
+    }
+    void CalendarRenderer::seekAudio(long positionMillis){
+        EnterCriticalSection(&cs);
+        if (audioPlayer){
+            audioPlayer->seek(positionMillis);
+        }
+        LeaveCriticalSection(&cs);
     }
 }

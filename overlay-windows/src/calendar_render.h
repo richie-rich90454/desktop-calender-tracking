@@ -101,5 +101,14 @@ namespace CalendarOverlay{
         bool needsScrollbar;
         float totalEventsHeight;
         float visibleHeight;
+        // Audio player members
+        std::unique_ptr<Audio::AudioPlayerEngine> audioPlayer;
+        std::unique_ptr<Audio::AudioFileManager> audioFileManager;
+        std::vector<Audio::AudioTrack> audioTracks;
+        int currentAudioTrackIndex;
+        bool audioControlsVisible;
+        float audioControlsHeight;
+        float audioProgress;
+        bool isDraggingAudioProgress;
     };
 }
