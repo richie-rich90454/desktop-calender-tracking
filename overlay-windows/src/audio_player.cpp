@@ -176,12 +176,12 @@ namespace CalendarOverlay{
         bool AudioPlayerEngine::playMidi(const AudioTrack& track){
             cleanupMidi();
             UINT deviceId=MIDI_MAPPER;
-            MMRESULT result=midiOutOpen((LPHMIDIOUT)&hMidiOut, deviceId, 0, 0, CALLBACK_NULL);
+            MMRESULT result=midiOutOpen(&hMidiOut, deviceId, 0, 0, CALLBACK_NULL);
             if (result!=MMSYSERR_NOERROR){
                 return false;
             }
             HMIDISTRM hMidiStream;
-            result=midiStreamOpen(&hMidiStream, (LPHMIDIOUT)&hMidiOut, 1, 0, 0, CALLBACK_NULL);
+            result=midiStreamOpen(&hMidiStream, &deviceId, 1, 0, 0, CALLBACK_NULL);
             if (result!=MMSYSERR_NOERROR){
                 midiOutClose(hMidiOut);
                 hMidiOut=nullptr;
@@ -242,7 +242,6 @@ namespace CalendarOverlay{
                 return false;
             }
             currentTrack.duration=120000;
-            
             return true;
         }
         bool AudioPlayerEngine::pause(){
