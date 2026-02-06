@@ -49,6 +49,19 @@ namespace CalendarOverlay{
         void handleMouseUp(int x, int y);
         void resetScroll();
         bool isScrollingActive() const;
+        void toggleAudioPlayback();
+        void playNextTrack();
+        void playPreviousTrack();
+        void setAudioVolume(float volume);
+        float getAudioVolume() const;
+        bool isAudioPlaying() const;
+        std::wstring getCurrentAudioTrack() const;
+        void scanAudioFiles();
+        void playAudioTrack(int index);
+        void stopAudioPlayback();
+        void pauseAudioPlayback();
+        void resumeAudioPlayback();
+        void seekAudio(long positionMillis);
     private:
         bool createDeviceResources();
         void releaseDeviceResources();
