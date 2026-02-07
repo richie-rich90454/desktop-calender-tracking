@@ -56,6 +56,7 @@ class JavaBuilder:
             "javac",
             "-d", str(self.build_dir),
             "-cp", cp_str,
+            "--release", "17",
             "-Xlint:unchecked"
         ] + java_files
         
