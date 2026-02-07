@@ -42,7 +42,7 @@ if "!JAVA_FILES!"=="" (
     exit /b 1
 )
 
-javac -d "%BUILD_DIR%" -cp "%SRC_DIR%" !JAVA_FILES!
+javac -d "%BUILD_DIR%" -cp "%SRC_DIR%" --release 17 !JAVA_FILES!
 if errorlevel 1 (
     echo Compilation failed!
     exit /b 1
