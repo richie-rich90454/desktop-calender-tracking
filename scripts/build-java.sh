@@ -33,7 +33,7 @@ compile() {
     echo "Found $(echo "$JAVA_FILES" | wc -l) Java source files"
     
     # Compile
-    javac -d "$BUILD_DIR" -cp "$SRC_DIR" -Xlint:unchecked $JAVA_FILES
+    javac -d "$BUILD_DIR" -cp "$SRC_DIR" --release 17 -Xlint:unchecked $JAVA_FILES
     
     if [ $? -eq 0 ]; then
         echo "Compilation successful"
