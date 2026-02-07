@@ -11,9 +11,30 @@ import java.security.spec.KeySpec;
 import java.util.Base64;
 import java.nio.charset.StandardCharsets;
 
-/**
- * Utility class for encrypting and decrypting API keys using AES-256-GCM.
- * Provides secure encryption with password-based key derivation.
+/*
+ * AES-256-GCM encryption utility for API key security.
+ *
+ * Responsibilities:
+ * - Encrypt API keys with password-based derivation
+ * - Decrypt stored API keys when needed
+ * - Generate secure random passwords
+ * - Validate encrypted data format
+ *
+ * Java data types used:
+ * - String
+ * - byte[]
+ * - SecretKey
+ * - Cipher
+ *
+ * Java technologies involved:
+ * - javax.crypto (AES-256-GCM, PBKDF2)
+ * - Base64 encoding
+ * - SecureRandom for cryptographic randomness
+ *
+ * Design intent:
+ * API keys are NEVER stored in plain text.
+ * All encryption uses password-based key derivation with salt.
+ * Each encryption generates unique IV for semantic security.
  */
 public class EncryptionUtil{
     private static final String ALGORITHM="AES/GCM/NoPadding";
