@@ -5,9 +5,31 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
-/**
-*Interface for AI clients that generate calendar events.
-*Supports multiple AI providers with different API formats.
+/*
+ * Interface for AI clients that generate calendar events.
+ *
+ * Responsibilities:
+ * - Generate events from natural language descriptions
+ * - Test API connections and validate credentials
+ * - Track usage statistics and costs
+ * - Handle multiple AI provider formats
+ *
+ * Java data types used:
+ * - Event
+ * - LocalDate
+ * - List<Event>
+ * - UsageStats (inner class)
+ * - AIException (inner class)
+ *
+ * Java technologies involved:
+ * - Interface-based design for multiple implementations
+ * - Exception hierarchy for error handling
+ * - Inner classes for related functionality
+ *
+ * Design intent:
+ * Each AI provider implements this interface with specific API handling.
+ * Usage tracking is built-in for cost monitoring.
+ * Error types are categorized for appropriate user feedback.
  */
 public interface AIClient{
     /**
