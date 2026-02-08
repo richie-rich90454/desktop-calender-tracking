@@ -41,6 +41,7 @@ import ui.AIConfigDialog;
 import javax.swing.*;
 import java.awt.*;
 import ai.AIException;
+import ui.AIProgressDialog;
 public class CalendarController {
     private CalendarModel model;
     private CalendarValidationService validationService;
@@ -411,8 +412,8 @@ public class CalendarController {
             JOptionPane.showMessageDialog(null, "AI client not configured", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
-        JDialog progressDialog=createProgressDialog();
-        progressDialog.setVisible(true);
+        AIProgressDialog progressDialog=new AIProgressDialog((Frame) SwingUtilities.getWindowAncestor((Component) null));
+        progressDialog.showDialog();
         SwingWorker<List<Event>, Void> worker=new SwingWorker<>(){
             private String errorMessage;
             @Override
@@ -420,46 +421,86 @@ public class CalendarController {
                 try{
                     LocalDate startDate=LocalDate.now();
                     List<Event> existingEvents=avoidConflicts?getallEvents():new ArrayList<>();
-                    return aiClient.generateEvents(goalDescription, startDate, days, existingEvents);
+                    progressDialog.update("Connecting to AI service...");
+                    if (progressDialog.isCancelled()) return new ArrayList<>();
+                    
+                    progressDialog.update("Sending request for: " + goalDescription);
+                    if (progressDialog.isCancelled()) return new ArrayList<>();
+                    
+                    List<Event> events = aiClient.generateEvents(goalDescription, startDate, days, existingEvents);
+                    
+                    progressDialog.updateSuccess("Generated " + events.size() + " events");
+                    for (Event event : events) {
+                        if (progressDialog.isCancelled()) return new ArrayList<>();
+                        progressDialog.updateEvent(event);
+                    }
+                    
+                    return events;
                 }
                 catch (AIException e){
                     errorMessage=e.getMessage();
+                    progressDialog.updateError("AI Error: " + e.getMessage());
                     return new ArrayList<>();
                 }
                 catch (Exception e){
                     errorMessage="Unexpected error: "+e.getMessage();
+                    progressDialog.updateError("Unexpected Error: " + e.getMessage());
                     return new ArrayList<>();
                 }
             }
             @Override
             protected void done(){
-                progressDialog.dispose();
                 try{
                     List<Event> generatedEvents=get();
+                    progressDialog.update("Processing completed");
+                    
                     if (generatedEvents.isEmpty()){
                         if (errorMessage!=null){
-                            JOptionPane.showMessageDialog(null, 
-                                "Failed to generate events: "+errorMessage, "Error", JOptionPane.ERROR_MESSAGE);
+                            progressDialog.updateError("Failed: " + errorMessage);
+                            SwingUtilities.invokeLater(() -> {
+                                progressDialog.closeDialog();
+                                JOptionPane.showMessageDialog(null, 
+                                    "Failed to generate events: "+errorMessage, "Error", JOptionPane.ERROR_MESSAGE);
+                            });
                         }
                         else{
-                            JOptionPane.showMessageDialog(null, 
-                                "No events were generated. Please try a different goal.", "Info", JOptionPane.INFORMATION_MESSAGE);
+                            progressDialog.updateWarning("No events generated");
+                            SwingUtilities.invokeLater(() -> {
+                                progressDialog.closeDialog();
+                                JOptionPane.showMessageDialog(null, 
+                                    "No events were generated. Please try a different goal.", "Info", JOptionPane.INFORMATION_MESSAGE);
+                            });
                         }
                         return;
                     }
+                    
+                    progressDialog.update("Adding events to calendar...");
                     List<Event> addedEvents=addMultipleEvents(generatedEvents);
+                    
                     if (addedEvents.isEmpty()){
-                        JOptionPane.showMessageDialog(null, 
-                            "Generated events conflict with existing events.", "Conflict", JOptionPane.WARNING_MESSAGE);
+                        progressDialog.updateWarning("All events conflict with existing events");
+                        SwingUtilities.invokeLater(() -> {
+                            progressDialog.closeDialog();
+                            JOptionPane.showMessageDialog(null, 
+                                "Generated events conflict with existing events.", "Conflict", JOptionPane.WARNING_MESSAGE);
+                        });
                     }
                     else{
-                        JOptionPane.showMessageDialog(null, 
-                            "Successfully added "+addedEvents.size()+" events!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                        progressDialog.updateSuccess("Successfully added " + addedEvents.size() + " events");
+                        SwingUtilities.invokeLater(() -> {
+                            progressDialog.closeDialog();
+                            JOptionPane.showMessageDialog(null, 
+                                "Successfully added "+addedEvents.size()+" events!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                        });
                     }
                     
                 }
                 catch (Exception e){
-                    JOptionPane.showMessageDialog(null, "Error processing AI response: "+e.getMessage(),  "Error", JOptionPane.ERROR_MESSAGE);
+                    progressDialog.updateError("Processing error: " + e.getMessage());
+                    SwingUtilities.invokeLater(() -> {
+                        progressDialog.closeDialog();
+                        JOptionPane.showMessageDialog(null, "Error processing AI response: "+e.getMessage(),  "Error", JOptionPane.ERROR_MESSAGE);
+                    });
                 }
             }
         };
