@@ -3,7 +3,8 @@ package ai;
 import model.Event;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.*;
+import java.util.List;
+import java.util.ArrayList;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.URI;
@@ -18,24 +19,11 @@ import java.net.URI;
  * - Parse OpenAI-style JSON responses
  * - Handle provider-specific configurations
  *
- * Java data types used:
- * - HttpRequest with Bearer authentication
- * - URI for API endpoints
- * - List<Event> for generated events
- * - String for JSON manipulation
- * - Map for provider configurations
- *
- * Java technologies involved:
- * - java.net.http for HTTP communication
- * - String manipulation for JSON parsing
- * - Java 17 text blocks for request templates
- * - Dynamic model fetching with caching
- *
  * Design intent:
  * Supports all OpenAI SDK-compatible APIs with dynamic model discovery.
  * Models are fetched from provider endpoints, not hardcoded.
- * Provider-specific endpoints and configurations are supported.
  */
+
 public class OpenAICompatibleClient extends BaseAIClient{
     private static final String DEFAULT_ENDPOINT="https://api.openai.com/v1/chat/completions";
     private static final String DEFAULT_MODEL="gpt-5-mini-2025-08-07";
@@ -53,9 +41,7 @@ public class OpenAICompatibleClient extends BaseAIClient{
     }
     public OpenAICompatibleClient(String apiKey, String endpoint){
         this(apiKey);
-        if (endpoint!=null&&!endpoint.isEmpty()){
-            this.endpoint=endpoint;
-        }
+        if (endpoint!=null&&!endpoint.isEmpty()) this.endpoint=endpoint;
     }
     @Override
     public String getProviderName(){
@@ -92,53 +78,25 @@ public class OpenAICompatibleClient extends BaseAIClient{
             HttpRequest request=HttpRequest.newBuilder().uri(URI.create(modelsEndpoint)).header("Authorization", "Bearer "+apiKey).GET().build();
             String response=httpClient.send(request, HttpResponse.BodyHandlers.ofString()).body();
             return parseModelsFromResponse(response);
-            
         }
         catch (Exception e){
             throw new AIException("Failed to fetch models from API: "+e.getMessage(), AIException.ErrorType.NETWORK_ERROR, e);
         }
     }
     private String constructModelsEndpoint(){
-        if (endpoint.contains("/chat/completions")){
-            return endpoint.replace("/chat/completions", "/models");
-        }
-        else if (endpoint.contains("/v1/chat/completions")){
-            return endpoint.replace("/v1/chat/completions", "/v1/models");
-        }
-        if (endpoint.endsWith("/")){
-            return endpoint+"models";
-        }
+        if (endpoint.contains("/chat/completions")) return endpoint.replace("/chat/completions", "/models");
+        if (endpoint.contains("/v1/chat/completions")) return endpoint.replace("/v1/chat/completions", "/v1/models");
+        if (endpoint.endsWith("/")) return endpoint+"models";
         return endpoint+"/models";
     }
     private List<String> parseModelsFromResponse(String response){
         List<String> models=new ArrayList<>();
-        try{
-            String data=extractJsonArray(response, "data").toString();
-            if (!data.isEmpty()){
-                List<String> modelItems=extractJsonArray(data, "");
-                for (String item:modelItems){
-                    String modelId=extractJsonValue(item, "id");
-                    if (modelId!=null){
-                        models.add(modelId);
-                    }
-                }
-            }
-            if (models.isEmpty()){
-                List<String> directModels=extractJsonArray(response, "");
-                for (String modelItem:directModels){
-                    String modelId=extractJsonValue(modelItem, "id")!=null?extractJsonValue(modelItem, "id"):modelItem;
-                    if (modelId!=null&&!modelId.isEmpty()){
-                        models.add(modelId);
-                    }
-                }
-            }
+        List<String> items=extractJsonArray(response, "data");
+        for (String item:items){
+            String id=extractJsonValue(item, "id");
+            if (id!=null&&!id.isEmpty()) models.add(id);
         }
-        catch (Exception e){
-            throw new RuntimeException("Failed to parse models response: "+e.getMessage(), e);
-        }
-        if (models.isEmpty()){
-            throw new RuntimeException("No models found in API response");
-        }
+        if (models.isEmpty()) throw new RuntimeException("No models found in API response");
         return models;
     }
     public void refreshModels() throws AIException{
@@ -150,9 +108,7 @@ public class OpenAICompatibleClient extends BaseAIClient{
         try{
             String requestBody=buildEventGenerationRequest(goalDescription, startDate, days, existingEvents);
             String response=sendRequest(requestBody);
-            int promptTokens=estimateTokens(requestBody);
-            int completionTokens=estimateTokens(response);
-            updateUsageStats(promptTokens, completionTokens);
+            updateUsageStats(estimateTokens(requestBody), estimateTokens(response));
             return parseResponse(response, startDate, days, existingEvents);
         }
         catch (AIException e){
@@ -170,196 +126,91 @@ public class OpenAICompatibleClient extends BaseAIClient{
     protected String buildTestRequest(String prompt){
         return String.format("""
         {
-                "model": "%s",
-                "messages": [{"role": "user", "content": "%s"}],
-                "max_tokens": 10,
-                "temperature": 0.1
-            }
-            """, model, escapeJson(prompt));
+            "model": "%s",
+            "messages": [{"role":"user","content":"%s"}],
+            "max_tokens": 10,
+            "temperature": 0.1
+        }
+        """, model, escapeJson(prompt));
     }
     protected String buildEventGenerationRequest(String goalDescription, LocalDate startDate, int days, List<Event> existingEvents){
-        String existingEventsStr=formatExistingEvents(existingEvents);
         return String.format("""
         {
-                "model": "%s",
-                "messages": [
+            "model": "%s",
+            "messages": [
                 {
-                        "role": "system",
-                        "content": "You are a calendar planning assistant. Generate realistic calendar events based on the user's goal. Return events in JSON format: [{\\"title\\": \\"string\\", \\"date\\": \\"YYYY-MM-DD\\", \\"start_time\\": \\"HH:MM\\", \\"end_time\\": \\"HH:MM\\"}]. Consider time blocks of 30-120 minutes. Avoid overlapping events. Include breaks between events."
-                    },
+                    "role": "system",
+                    "content": "You are a calendar planning assistant. Return events as JSON array with title, date, start_time, end_time."
+                },
                 {
-                        "role": "user",
-                        "content": "Goal: %s\\nStart Date: %s\\nDays to plan: %d\\nExisting events to avoid: %s\\n\\nGenerate a realistic schedule for the next %d days. Return only the JSON array, no other text."
-                    }
-                ],
-                "max_tokens": 2000,
-                "temperature": 0.7,
-                "response_format":{"type": "json_object"}
-            }
-            """, model, escapeJson(goalDescription), startDate, days, existingEventsStr, days);
+                    "role": "user",
+                    "content": "Goal: %s\\nStart Date: %s\\nDays: %d\\nExisting events: %s"
+                }
+            ],
+            "max_tokens": 2000,
+            "temperature": 0.7
+        }
+        """, model, escapeJson(goalDescription), startDate, days, escapeJson(formatExistingEvents(existingEvents)));
     }
     @Override
     protected List<Event> parseResponse(String response, LocalDate startDate, int days, List<Event> existingEvents) throws AIException{
         try{
             String content=extractContentFromResponse(response);
-            if (content==null||content.isEmpty()){
-                throw new AIException("Empty response from AI", AIException.ErrorType.INVALID_RESPONSE);
-            }
-            int arrayStart=content.indexOf('[');
-            int arrayEnd=content.lastIndexOf(']');
-            if (arrayStart==-1||arrayEnd==-1||arrayEnd <= arrayStart){
-                throw new AIException("No valid JSON array found in response: "+content, AIException.ErrorType.INVALID_RESPONSE);
-            }
-            String jsonArray=content.substring(arrayStart, arrayEnd+1);
-            List<String> eventItems=extractJsonArray(jsonArray, "");
-            if (eventItems.isEmpty()){
-                eventItems=parseDirectJsonArray(jsonArray);
-            }
+            int start=content.indexOf('[');
+            int end=content.lastIndexOf(']');
+            if (start==-1||end==-1||end <= start) throw new AIException("No JSON array found", AIException.ErrorType.INVALID_RESPONSE);
+            List<String> items=extractJsonArray(content.substring(start, end+1), "");
             List<Event> events=new ArrayList<>();
-            for (String item:eventItems){
-                Event event=parseEventItem(item);
-                if (event!=null){
-                    events.add(event);
-                }
-            }
-            if (events.isEmpty()){
-                throw new AIException("No valid events found in response", AIException.ErrorType.INVALID_RESPONSE);
-            }
+            for (String item:items) events.add(parseEventItem(item));
+            if (events.isEmpty()) throw new AIException("No valid events parsed", AIException.ErrorType.INVALID_RESPONSE);
             return events;
         }
         catch (AIException e){
             throw e;
         }
         catch (Exception e){
-            throw new AIException("Failed to parse AI response: "+e.getMessage(), AIException.ErrorType.INVALID_RESPONSE, e);
+            throw new AIException("Failed to parse response: "+e.getMessage(), AIException.ErrorType.INVALID_RESPONSE, e);
         }
     }
     private String extractContentFromResponse(String response){
-        try{
-            String content=extractJsonValue(response, "content");
-            if (content!=null){
-                return content;
+        String content=extractJsonValue(response, "content");
+        if (content!=null) return content;
+        List<String> choices=extractJsonArray(response, "choices");
+        for (String c:choices){
+            String msg=extractJsonValue(c, "message");
+            if (msg!=null){
+                content=extractJsonValue(msg, "content");
+                if (content!=null) return content;
             }
-            String messageContent=extractJsonValue(response, "message");
-            if (messageContent!=null){
-                content=extractJsonValue(messageContent, "content");
-                if (content!=null){
-                    return content;
-                }
-            }
-            List<String> choices=extractJsonArray(response, "choices");
-            if (!choices.isEmpty()){
-                for (String choice:choices){
-                    String message=extractJsonValue(choice, "message");
-                    if (message!=null){
-                        content=extractJsonValue(message, "content");
-                        if (content!=null){
-                            return content;
-                        }
-                    }
-                }
-            }
-            return response;
         }
-        catch (Exception e){
-            return response;
-        }
+        return response;
     }
-    private Event parseEventItem(String jsonItem) throws AIException{
-        try{
-            String title=extractJsonValue(jsonItem, "title");
-            String date=extractJsonValue(jsonItem, "date");
-            String startTime=extractJsonValue(jsonItem, "start_time");
-            String endTime=extractJsonValue(jsonItem, "end_time");
-            if (title==null||date==null||startTime==null||endTime==null){
-                title=extractJsonValue(jsonItem, "name")!=null?extractJsonValue(jsonItem, "name"):title;
-                date=extractJsonValue(jsonItem, "date");
-                startTime=extractJsonValue(jsonItem, "startTime")!=null?extractJsonValue(jsonItem, "startTime"):startTime;
-                endTime=extractJsonValue(jsonItem, "endTime")!=null?extractJsonValue(jsonItem, "endTime"):endTime;
-                if (title==null||date==null||startTime==null||endTime==null){
-                    throw new AIException("Missing required fields in event item: "+jsonItem, AIException.ErrorType.INVALID_RESPONSE);
-                }
-            }
-            startTime=normalizeTimeFormat(startTime);
-            endTime=normalizeTimeFormat(endTime);
-            LocalTime start=LocalTime.parse(startTime, TIME_FORMATTER);
-            LocalTime end=LocalTime.parse(endTime, TIME_FORMATTER);
-            if (!end.isAfter(start)){
-                throw new AIException("End time must be after start time: "+startTime+" - "+endTime, AIException.ErrorType.INVALID_RESPONSE);
-            }
-            return createEvent(title, date, startTime, endTime);
-        }
-        catch (Exception e){
-            throw new AIException("Failed to parse event item: "+e.getMessage(), AIException.ErrorType.INVALID_RESPONSE);
-        }
+    private Event parseEventItem(String json) throws AIException{
+        String title=extractJsonValue(json, "title");
+        String date=extractJsonValue(json, "date");
+        String start=normalizeTimeFormat(extractJsonValue(json, "start_time"));
+        String end=normalizeTimeFormat(extractJsonValue(json, "end_time"));
+        if (title==null||date==null||start==null||end==null) throw new AIException("Invalid event item: "+json, AIException.ErrorType.INVALID_RESPONSE);
+        LocalTime st=LocalTime.parse(start, TIME_FORMATTER);
+        LocalTime et=LocalTime.parse(end, TIME_FORMATTER);
+        if (!et.isAfter(st)) throw new AIException("End time before start time", AIException.ErrorType.INVALID_RESPONSE);
+        return createEvent(title, date, start, end);
     }
     private String normalizeTimeFormat(String time) throws AIException{
         try{
-            time=time.trim().toUpperCase();
-            time=time.replace("AM", "").replace("PM", "").trim();
-            LocalTime parsedTime;
-            if (time.split(":").length==2){
-                parsedTime=LocalTime.parse(time+":00");
-                return parsedTime.format(TIME_FORMATTER);
-            }
-            else{
-                parsedTime=LocalTime.parse(time);
-                return parsedTime.format(TIME_FORMATTER);
-            }
+            if (time==null) throw new IllegalArgumentException();
+            time=time.trim();
+            if (time.length() ==5) time=time+":00";
+            return LocalTime.parse(time).format(TIME_FORMATTER);
         }
         catch (Exception e){
             throw new AIException("Invalid time format: "+time, AIException.ErrorType.INVALID_RESPONSE);
         }
     }
-    private List<String> parseDirectJsonArray(String jsonArray){
-        List<String> items=new ArrayList<>();
-        StringBuilder current=new StringBuilder();
-        int depth=0;
-        boolean inString=false;
-        char lastChar=0;
-        for (int i=0;i<jsonArray.length();i++){
-            char c=jsonArray.charAt(i);
-            if (c=='"'&&lastChar!='\\'){
-                inString=!inString;
-            }
-            else if (!inString){
-                if (c=='{'){
-                    depth++;
-                }
-                else if (c=='}'){
-                    depth--;
-                }
-                else if (c==','&&depth==0){
-                    String item=current.toString().trim();
-                    if (!item.isEmpty()&&item.startsWith("{")&&item.endsWith("}")){
-                        items.add(item);
-                    }
-                    current=new StringBuilder();
-                    continue;
-                }
-            }
-            current.append(c);
-            lastChar=c;
-        }
-        String lastItem=current.toString().trim();
-        if (!lastItem.isEmpty()&&lastItem.startsWith("{")&&lastItem.endsWith("}")){
-            items.add(lastItem);
-        }
-        return items;
-    }
-    private String formatExistingEvents(List<Event> existingEvents){
-        if (existingEvents==null||existingEvents.isEmpty()){
-            return "None";
-        }
+    private String formatExistingEvents(List<Event> events){
+        if (events==null||events.isEmpty()) return "None";
         StringBuilder sb=new StringBuilder();
-        for (Event event:existingEvents){
-            sb.append(String.format("%s: %s %s-%s;", 
-                event.getDate(),
-                event.getTitle(),
-                event.getStartTime(),
-                event.getEndTime()
-            ));
-        }
+        for (Event e:events) sb.append(e.getDate()).append(" ").append(e.getTitle()).append(" ").append(e.getStartTime()).append("-").append(e.getEndTime()).append("; ");
         return sb.toString();
     }
     private String escapeJson(String text){

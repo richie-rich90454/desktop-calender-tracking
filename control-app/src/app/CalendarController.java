@@ -40,8 +40,6 @@ import ai.*;
 import ui.AIConfigDialog;
 import javax.swing.*;
 import java.awt.*;
-import java.time.LocalDate;
-import java.util.concurrent.ExecutionException;
 import ai.AIException;
 public class CalendarController {
     private CalendarModel model;
