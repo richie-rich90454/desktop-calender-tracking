@@ -177,9 +177,12 @@ public class AIConfigDialog extends JDialog{
         String provider=(String) providerCombo.getSelectedItem();
         String endpoint=endpointField.getText();
         String apiKey=new String(apiKeyField.getPassword());
-        if (apiKey.isEmpty()){
+        
+        // Ollama doesn't require an API key, other providers do
+        if (!provider.equals("Ollama") && apiKey.isEmpty()){
             return;
         }
+        
         SwingWorker<List<String>, Void> worker=new SwingWorker<>(){
             @Override
             protected List<String> doInBackground() throws Exception{
@@ -217,7 +220,9 @@ public class AIConfigDialog extends JDialog{
         String provider=(String) providerCombo.getSelectedItem();
         String endpoint=endpointField.getText();
         String apiKey=new String(apiKeyField.getPassword());
-        if (apiKey.isEmpty()){
+        
+        // Ollama doesn't require an API key, other providers do
+        if (!provider.equals("Ollama") && apiKey.isEmpty()){
             JOptionPane.showMessageDialog(this, "Please enter an API key","Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
@@ -266,22 +271,31 @@ public class AIConfigDialog extends JDialog{
     private boolean validateInput(){
         String goal=goalTextArea.getText().trim();
         String apiKey=new String(apiKeyField.getPassword());
+        String provider=(String) providerCombo.getSelectedItem();
+        
         if (goal.isEmpty()){
             JOptionPane.showMessageDialog(this, "Please enter a goal description","Error", JOptionPane.ERROR_MESSAGE);
             return false;
         }
-        if (apiKey.isEmpty()){
+        
+        // Ollama doesn't require an API key, other providers do
+        if (!provider.equals("Ollama") && apiKey.isEmpty()){
             JOptionPane.showMessageDialog(this, "Please enter an API key","Error", JOptionPane.ERROR_MESSAGE);
             return false;
         }
-        try{
-            String encryptedKey=EncryptionUtil.encrypt(apiKey, ENCRYPTION_PASSWORD);
+        
+        // Only encrypt API key if it's provided (not empty)
+        if (!apiKey.isEmpty()) {
+            try{
+                String encryptedKey=EncryptionUtil.encrypt(apiKey, ENCRYPTION_PASSWORD);
+            }
+            catch (Exception e){
+                JOptionPane.showMessageDialog(this,"Failed to encrypt API key: "+e.getMessage(),"Error", JOptionPane.ERROR_MESSAGE);
+                return false;
+            }
         }
-        catch (Exception e){
-            JOptionPane.showMessageDialog(this,"Failed to encrypt API key: "+e.getMessage(),"Error", JOptionPane.ERROR_MESSAGE);
-            return false;
-        }
-        selectedProvider=(String) providerCombo.getSelectedItem();
+        
+        selectedProvider=provider;
         selectedModel=(String) modelCombo.getSelectedItem();
         return true;
     }

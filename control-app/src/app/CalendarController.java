@@ -494,12 +494,10 @@ public class CalendarController {
         AIClient.UsageStats lastStats=aiClient.getLastUsageStats();
         AIClient.UsageStats totalStats=aiClient.getTotalUsageStats();
         return String.format(
-            "Last request: %d prompt+%d completion tokens=$%.4f\n" +
-            "Total usage: %d prompt+%d completion tokens=$%.4f",
+            "Last request: %d prompt + %d completion tokens\n" +
+            "Total usage: %d prompt + %d completion tokens",
             lastStats.getPromptTokens(), lastStats.getCompletionTokens(), 
-            lastStats.getEstimatedCost(),
-            totalStats.getPromptTokens(), totalStats.getCompletionTokens(),
-            totalStats.getEstimatedCost()
+            totalStats.getPromptTokens(), totalStats.getCompletionTokens()
         );
     }
 }

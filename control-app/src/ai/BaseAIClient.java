@@ -130,9 +130,8 @@ public abstract class BaseAIClient implements AIClient {
     }
 
     protected void updateUsageStats(int promptTokens, int completionTokens) {
-        double cost = getCostPerThousandTokens();
-        lastUsageStats.addRequest(promptTokens, completionTokens, cost);
-        totalUsageStats.addRequest(promptTokens, completionTokens, cost);
+        lastUsageStats.addRequest(promptTokens, completionTokens, 0.0);
+        totalUsageStats.addRequest(promptTokens, completionTokens, 0.0);
     }
 
     protected int estimateTokens(String text) { return (int) Math.ceil(text.length() / 4.0); }

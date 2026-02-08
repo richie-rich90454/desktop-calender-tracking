@@ -27,7 +27,6 @@ import java.net.URI;
 public class OpenAICompatibleClient extends BaseAIClient{
     private static final String DEFAULT_ENDPOINT="https://api.openai.com/v1/chat/completions";
     private static final String DEFAULT_MODEL="gpt-5-mini-2025-08-07";
-    private static final double DEFAULT_COST_PER_1K=0.002;
     private List<String> supportedModels=new ArrayList<>();
     private boolean modelsFetched=false;
     public OpenAICompatibleClient(){
@@ -53,7 +52,7 @@ public class OpenAICompatibleClient extends BaseAIClient{
     }
     @Override
     public double getCostPerThousandTokens(){
-        return DEFAULT_COST_PER_1K;
+        return 0.0; // Cost estimation disabled as per user request
     }
     @Override
     public int getMaxTokensPerRequest(){
@@ -140,17 +139,18 @@ public class OpenAICompatibleClient extends BaseAIClient{
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are a calendar planning assistant. Return events as JSON array with title, date, start_time, end_time."
+                    "content": "You are a calendar planning assistant. Generate calendar events based on the user's goal. Return ONLY a valid JSON array of event objects. Each event object must have these exact fields: title (string), date (YYYY-MM-DD), start_time (HH:MM in 24-hour format), end_time (HH:MM in 24-hour format). Example: [{\\"title\\":\\"Study session\\",\\"date\\":\\"2025-02-10\\",\\"start_time\\":\\"14:00\\",\\"end_time\\":\\"16:00\\"}, {\\"title\\":\\"Meeting\\",\\"date\\":\\"2025-02-11\\",\\"start_time\\":\\"10:00\\",\\"end_time\\":\\"11:30\\"}]"
                 },
                 {
                     "role": "user",
-                    "content": "Goal: %s\\nStart Date: %s\\nDays: %d\\nExisting events: %s"
+                    "content": "Goal: %s\\nStart Date: %s\\nNumber of days to plan: %d\\nExisting events (avoid conflicts): %s\\n\\nGenerate a schedule of events for the next %d days starting from %s. Make sure events don't overlap with existing events. Return ONLY the JSON array, no other text."
                 }
             ],
             "max_tokens": 2000,
-            "temperature": 0.7
+            "temperature": 0.7,
+            "response_format": { "type": "json_object" }
         }
-        """, model, escapeJson(goalDescription), startDate, days, escapeJson(formatExistingEvents(existingEvents)));
+        """, model, escapeJson(goalDescription), startDate, days, escapeJson(formatExistingEvents(existingEvents)), days, startDate);
     }
     @Override
     protected List<Event> parseResponse(String response, LocalDate startDate, int days, List<Event> existingEvents) throws AIException{
@@ -176,21 +176,67 @@ public class OpenAICompatibleClient extends BaseAIClient{
         String content=extractJsonValue(response, "content");
         if (content!=null) return content;
         List<String> choices=extractJsonArray(response, "choices");
-        for (String c:choices){
-            String msg=extractJsonValue(c, "message");
-            if (msg!=null){
-                content=extractJsonValue(msg, "content");
+        for (String choice:choices){
+            String message=extractJsonValue(choice, "message");
+            if (message!=null){
+                content=extractJsonValue(message, "content");
                 if (content!=null) return content;
             }
+            String delta=extractJsonValue(choice, "delta");
+            if (delta!=null){
+                content=extractJsonValue(delta, "content");
+                if (content!=null) return content;
+            }
+            content=extractJsonValue(choice, "text");
+            if (content!=null) return content;
         }
-        return response;
+        String cleaned=response.trim();
+        if (cleaned.startsWith("{") && cleaned.endsWith("}")) {
+            int contentStart=cleaned.indexOf("\"content\":");
+            if (contentStart != -1) {
+                contentStart += 10; 
+                int quoteStart=cleaned.indexOf('"', contentStart);
+                if (quoteStart != -1 && quoteStart < cleaned.length()) {
+                    int quoteEnd=cleaned.indexOf('"', quoteStart + 1);
+                    while (quoteEnd != -1 && quoteEnd > 0 && cleaned.charAt(quoteEnd - 1)=='\\') {
+                        quoteEnd=cleaned.indexOf('"', quoteEnd + 1);
+                    }
+                    if (quoteEnd != -1) {
+                        return cleaned.substring(quoteStart + 1, quoteEnd);
+                    }
+                }
+            }
+        }
+        return cleaned;
     }
     private Event parseEventItem(String json) throws AIException{
         String title=extractJsonValue(json, "title");
+        if (title==null) title=extractJsonValue(json, "name");
+        if (title==null) title=extractJsonValue(json, "summary");
+        
         String date=extractJsonValue(json, "date");
-        String start=normalizeTimeFormat(extractJsonValue(json, "start_time"));
-        String end=normalizeTimeFormat(extractJsonValue(json, "end_time"));
-        if (title==null||date==null||start==null||end==null) throw new AIException("Invalid event item: "+json, AIException.ErrorType.INVALID_RESPONSE);
+        if (date==null) date=extractJsonValue(json, "day");
+        if (date==null) date=extractJsonValue(json, "event_date");
+        String start=null;
+        String end=null;
+        start=extractJsonValue(json, "start_time");
+        end=extractJsonValue(json, "end_time");
+        if (start==null) start=extractJsonValue(json, "start");
+        if (end==null) end=extractJsonValue(json, "end");
+        if (start==null) start=extractJsonValue(json, "startTime");
+        if (end==null) end=extractJsonValue(json, "endTime");
+        if (start==null) start=extractJsonValue(json, "from");
+        if (end==null) end=extractJsonValue(json, "to");
+        if (start != null) start=normalizeTimeFormat(start);
+        if (end != null) end=normalizeTimeFormat(end);
+        if (title==null||date==null||start==null||end==null) {
+            throw new AIException("Invalid event item: " + json + 
+                "\nMissing fields - title: " + title + 
+                ", date: " + date + 
+                ", start: " + start + 
+                ", end: " + end, 
+                AIException.ErrorType.INVALID_RESPONSE);
+        }
         LocalTime st=LocalTime.parse(start, TIME_FORMATTER);
         LocalTime et=LocalTime.parse(end, TIME_FORMATTER);
         if (!et.isAfter(st)) throw new AIException("End time before start time", AIException.ErrorType.INVALID_RESPONSE);
@@ -198,13 +244,75 @@ public class OpenAICompatibleClient extends BaseAIClient{
     }
     private String normalizeTimeFormat(String time) throws AIException{
         try{
-            if (time==null) throw new IllegalArgumentException();
-            time=time.trim();
-            if (time.length() ==5) time=time+":00";
-            return LocalTime.parse(time).format(TIME_FORMATTER);
-        }
-        catch (Exception e){
-            throw new AIException("Invalid time format: "+time, AIException.ErrorType.INVALID_RESPONSE);
+            if (time==null) throw new IllegalArgumentException("Time cannot be null");
+            time=time.trim().toUpperCase();
+            if (time.isEmpty()) throw new IllegalArgumentException("Time cannot be empty");
+            time=time.replaceAll("\\s+", " ");
+            try {
+                if (time.matches("^\\d{1,2}:\\d{2}$")) {
+                    String[] parts=time.split(":");
+                    int hour=Integer.parseInt(parts[0]);
+                    int minute=Integer.parseInt(parts[1]);
+                    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+                        return String.format("%02d:%02d", hour, minute);
+                    }
+                }
+                if (time.matches("^\\d{1,2}:\\d{2}:\\d{2}$")) {
+                    String[] parts=time.split(":");
+                    int hour=Integer.parseInt(parts[0]);
+                    int minute=Integer.parseInt(parts[1]);
+                    int second=Integer.parseInt(parts[2]);
+                    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 && second >= 0 && second <= 59) {
+                        return String.format("%02d:%02d", hour, minute);
+                    }
+                }
+                if (time.matches("^\\d{3,4}$") && !time.contains(":")) {
+                    int len=time.length();
+                    int hour, minute;
+                    if (len==3) {
+                        hour=Integer.parseInt(time.substring(0, 1));
+                        minute=Integer.parseInt(time.substring(1, 3));
+                    } else {
+                        hour=Integer.parseInt(time.substring(0, 2));
+                        minute=Integer.parseInt(time.substring(2, 4));
+                    }
+                    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+                        return String.format("%02d:%02d", hour, minute);
+                    }
+                }
+                if (time.contains("AM") || time.contains("PM")) {
+                    String ampm=time.contains("AM") ? "AM" : "PM";
+                    String timePart=time.replace("AM", "").replace("PM", "").trim();
+                    if (timePart.matches("^\\d{1,2}(:\\d{2}){0,2}$")) {
+                        String[] parts=timePart.split(":");
+                        int hour=Integer.parseInt(parts[0]);
+                        int minute=parts.length > 1 ? Integer.parseInt(parts[1]) : 0;
+                        if (ampm.equals("PM") && hour != 12) {
+                            hour += 12;
+                        } else if (ampm.equals("AM") && hour==12) {
+                            hour=0;
+                        }
+                        
+                        if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+                            return String.format("%02d:%02d", hour, minute);
+                        }
+                    }
+                }
+                try {
+                    LocalTime parsed=LocalTime.parse(time);
+                    return parsed.format(TIME_FORMATTER);
+                } catch (Exception e) {
+
+                }
+                
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Invalid number in time: " + time);
+            }
+            throw new IllegalArgumentException("Unrecognized time format: " + time);
+            
+        } catch (Exception e) {
+            throw new AIException("Invalid time format: " + time + " - " + e.getMessage(), 
+                                 AIException.ErrorType.INVALID_RESPONSE, e);
         }
     }
     private String formatExistingEvents(List<Event> events){

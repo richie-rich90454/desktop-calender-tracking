@@ -47,7 +47,6 @@ public interface AIClient{
         private int requestCount;
         private int totalPromptTokens;
         private int totalCompletionTokens;
-        private double totalCost;
         public UsageStats(){
             reset();
         }
@@ -55,13 +54,11 @@ public interface AIClient{
             requestCount=0;
             totalPromptTokens=0;
             totalCompletionTokens=0;
-            totalCost=0.0;
         }
         public void addRequest(int promptTokens, int completionTokens, double costPerThousandTokens){
             requestCount++;
             totalPromptTokens+=promptTokens;
             totalCompletionTokens+=completionTokens;
-            totalCost+=(costPerThousandTokens/1000.0)*(promptTokens+completionTokens);
         }
         public int getRequestCount(){
             return requestCount;
@@ -72,18 +69,15 @@ public interface AIClient{
         public int getCompletionTokens(){
             return totalCompletionTokens;
         }
-        public double getEstimatedCost(){
-            return totalCost;
-        }
         public int getTotalTokens(){
             return totalPromptTokens+totalCompletionTokens;
         }
         @Override
         public String toString(){
             return String.format(
-                "Requests: %d, Prompt: %d, Completion: %d, Total: %d, Cost: $%.4f",
+                "Requests: %d, Prompt: %d, Completion: %d, Total: %d",
                 requestCount, totalPromptTokens, totalCompletionTokens, 
-                getTotalTokens(), totalCost
+                getTotalTokens()
             );
         }
     }
