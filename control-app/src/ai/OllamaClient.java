@@ -9,48 +9,44 @@ import java.net.http.HttpResponse;
 import java.net.URI;
 
 /*
- * OpenAI SDK-compatible AI client for multiple providers (DeepSeek, OpenRouter, etc.)
+ * Ollama client for local AI models
  *
  * Responsibilities:
- * - Communicate with OpenAI-compatible APIs
+ * - Communicate with local Ollama API
  * - Use AIPromptManager for structured prompts
  * - Use AIJsonParser for robust JSON parsing
- * - Handle provider-specific configurations
+ * - Handle Ollama-specific API format
  *
  * Design intent:
- * Supports all OpenAI SDK-compatible APIs with proper JSON response parsing.
- * Uses separate prompts.txt file for easy editing.
+ * Supports local Ollama models without API key requirement.
+ * Uses different API endpoint format than OpenAI.
  */
 
-public class OpenAICompatibleClient extends BaseAIClient{
-    private static final String DEFAULT_ENDPOINT="https://api.openai.com/v1/chat/completions";
-    private static final String DEFAULT_MODEL="gpt-3.5-turbo";
+public class OllamaClient extends BaseAIClient{
+    private static final String DEFAULT_ENDPOINT="http://localhost:11434/api/chat";
+    private static final String DEFAULT_MODEL="llama3.2";
     private final AIPromptManager promptManager;
     private List<String> supportedModels=new ArrayList<>();
     private boolean modelsFetched=false;
-    public OpenAICompatibleClient(){
+    public OllamaClient(){
         super();
         this.endpoint=DEFAULT_ENDPOINT;
         this.model=DEFAULT_MODEL;
         this.promptManager=new AIPromptManager();
     }
-    public OpenAICompatibleClient(String apiKey){
+    public OllamaClient(String endpoint){
         this();
-        this.apiKey=apiKey;
-    }
-    public OpenAICompatibleClient(String apiKey, String endpoint){
-        this(apiKey);
         if (endpoint!=null&&!endpoint.isEmpty()){
             this.endpoint=endpoint;
         }
     }
     @Override
     public String getProviderName(){
-        return "OpenAI (Compatible)";
+        return "Ollama (Local)";
     }
     @Override
     public boolean isOfflineCapable(){
-        return false;
+        return true;
     }
     @Override
     public double getCostPerThousandTokens(){
@@ -58,66 +54,71 @@ public class OpenAICompatibleClient extends BaseAIClient{
     }
     @Override
     public int getMaxTokensPerRequest(){
-        return 4000;
+        return 8192;
     }
     @Override
     public List<String> getSupportedModels(){
-        if (!modelsFetched&&apiKey!=null&&!apiKey.isEmpty()){
+        if (!modelsFetched){
             try{
                 supportedModels=fetchModelsViaAPI();
                 modelsFetched=true;
             }
             catch (Exception e){
-                throw new RuntimeException("Failed to fetch models from provider API: "+e.getMessage(), e);
+                supportedModels=getDefaultModels();
+                modelsFetched=true;
             }
         }
         return new ArrayList<>(supportedModels);
     }
     private List<String> fetchModelsViaAPI() throws AIException{
         try{
-            String modelsEndpoint=constructModelsEndpoint();
-            HttpRequest request=HttpRequest.newBuilder().uri(URI.create(modelsEndpoint)).header("Authorization", "Bearer "+apiKey).GET().build();
+            String modelsEndpoint="http://localhost:11434/api/tags";
+            HttpRequest request=HttpRequest.newBuilder().uri(URI.create(modelsEndpoint)).GET().build();
             String response=httpClient.send(request, HttpResponse.BodyHandlers.ofString()).body();
             return parseModelsFromResponse(response);
         }
         catch (Exception e){
-            throw new AIException("Failed to fetch models from API: "+e.getMessage(),AIException.ErrorType.NETWORK_ERROR, e);
+            throw new AIException("Failed to fetch models from Ollama API: "+e.getMessage(),AIException.ErrorType.NETWORK_ERROR, e);
         }
-    }
-    private String constructModelsEndpoint(){
-        if (endpoint.contains("/chat/completions")){
-            return endpoint.replace("/chat/completions", "/models");
-        }
-        if (endpoint.contains("/v1/chat/completions")){
-            return endpoint.replace("/v1/chat/completions", "/v1/models");
-        }
-        if (endpoint.endsWith("/")){
-            return endpoint+"models";
-        }
-        return endpoint+"/models";
     }
     private List<String> parseModelsFromResponse(String response){
         List<String> models=new ArrayList<>();
-        String[] lines=response.split("\n");
-        for (String line:lines){
-            line=line.trim();
-            if (line.contains("\"id\"")){
-                int start=line.indexOf("\"id\"");
-                int colon=line.indexOf(":", start);
-                int quote1=line.indexOf("\"", colon+1);
-                int quote2=line.indexOf("\"", quote1+1);
-                if (quote1!=-1&&quote2!=-1&&quote2 > quote1){
-                    String modelId=line.substring(quote1+1, quote2);
-                    if (!modelId.isEmpty()&&!modelId.startsWith("ft:")){
-                        models.add(modelId);
+        try{
+            int modelsStart=response.indexOf("\"models\"");
+            if (modelsStart!=-1){
+                int bracketStart=response.indexOf("[", modelsStart);
+                if (bracketStart!=-1){
+                    int bracketEnd=findMatchingBracket(response, bracketStart);
+                    if (bracketEnd!=-1){
+                        String modelsArray=response.substring(bracketStart+1, bracketEnd);
+                        String[] modelItems=splitJsonObjects(modelsArray);
+                        for (String item:modelItems){
+                            String name=extractJsonField(item, "name");
+                            if (name!=null&&!name.isEmpty()){
+                                models.add(name);
+                            }
+                        }
                     }
                 }
             }
         }
+        catch (Exception e){
+            System.err.println("Error parsing Ollama models: "+e.getMessage());
+        }
         if (models.isEmpty()){
-            throw new RuntimeException("No models found in API response");
+            return getDefaultModels();
         }
         return models;
+    }
+    private List<String> getDefaultModels(){
+        List<String> defaultModels=new ArrayList<>();
+        defaultModels.add("llama3.2");
+        defaultModels.add("llama3.1");
+        defaultModels.add("llama3");
+        defaultModels.add("mistral");
+        defaultModels.add("codellama");
+        defaultModels.add("phi");
+        return defaultModels;
     }
     public void refreshModels() throws AIException{
         supportedModels=fetchModelsViaAPI();
@@ -140,16 +141,20 @@ public class OpenAICompatibleClient extends BaseAIClient{
     }
     @Override
     protected HttpRequest buildHttpRequest(String requestBody){
-        return HttpRequest.newBuilder().uri(URI.create(endpoint)).header("Content-Type", "application/json").header("Authorization", "Bearer "+apiKey).POST(HttpRequest.BodyPublishers.ofString(requestBody)).build();
+        return HttpRequest.newBuilder().uri(URI.create(endpoint)).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(requestBody)).build();
     }
     @Override
     protected String buildTestRequest(String prompt){
         return String.format("""
         {
             "model": "%s",
-            "messages": [{"role": "user", "content": "%s"}],
-            "max_tokens": 10,
-            "temperature": 0.1
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "%s"
+                }
+            ],
+            "stream": false
         }
         """, model, AIJsonParser.escapeJsonString(prompt));
     }
@@ -169,9 +174,12 @@ public class OpenAICompatibleClient extends BaseAIClient{
                     "content": "%s"
                 }
             ],
-            "max_tokens": 2000,
-            "temperature": 0.7,
-            "response_format": { "type": "json_object" }
+            "stream": false,
+            "format": "json",
+            "options": {
+                "temperature": 0.7,
+                "num_predict": 2000
+            }
         }
         """, model,AIJsonParser.escapeJsonString(systemPrompt),AIJsonParser.escapeJsonString(userPrompt));
     }
@@ -180,7 +188,7 @@ public class OpenAICompatibleClient extends BaseAIClient{
         try{
             String content=extractContentFromResponse(response);
             if (content==null||content.trim().isEmpty()){
-                throw new AIException("Empty response from AI", AIException.ErrorType.INVALID_RESPONSE);
+                throw new AIException("Empty response from Ollama", AIException.ErrorType.INVALID_RESPONSE);
             }
             return AIJsonParser.parseAIResponse(content);
         }
@@ -195,43 +203,27 @@ public class OpenAICompatibleClient extends BaseAIClient{
     private String extractContentFromResponse(String response){
         try{
             if (response.trim().startsWith("{")){
-                int contentStart=response.indexOf("\"content\"");
-                if (contentStart!=-1){
-                    int colon=response.indexOf(":", contentStart);
-                    int quote1=response.indexOf("\"", colon+1);
-                    if (quote1!=-1){
-                        int quote2=response.indexOf("\"", quote1+1);
-                        while (quote2!=-1&&response.charAt(quote2 - 1)=='\\'){
-                            quote2=response.indexOf("\"", quote2+1);
-                        }
-                        if (quote2!=-1){
-                            return response.substring(quote1+1, quote2);
-                        }
-                    }
-                }
-                int choicesStart=response.indexOf("\"choices\"");
-                if (choicesStart!=-1){
-                    int bracketStart=response.indexOf("[", choicesStart);
-                    if (bracketStart!=-1){
-                        int bracketEnd=findMatchingBracket(response, bracketStart);
-                        if (bracketEnd!=-1){
-                            String choices=response.substring(bracketStart+1, bracketEnd);
-                            String[] choiceItems=splitJsonObjects(choices);
-                            for (String choice:choiceItems){
-                                String message=extractJsonField(choice, "message");
-                                if (message!=null){
-                                    String content=extractJsonField(message, "content");
-                                    if (content!=null){
-                                        return content;
-                                    }
-                                }
-                                String text=extractJsonField(choice, "text");
-                                if (text!=null){
-                                    return text;
-                                }
+                int messageStart=response.indexOf("\"message\"");
+                if (messageStart!=-1){
+                    int braceStart=response.indexOf("{", messageStart);
+                    if (braceStart!=-1){
+                        int braceEnd=findMatchingBracket(response, braceStart);
+                        if (braceEnd!=-1){
+                            String message=response.substring(braceStart, braceEnd+1);
+                            String content=extractJsonField(message, "content");
+                            if (content!=null){
+                                return content;
                             }
                         }
                     }
+                }
+                String content=extractJsonField(response, "content");
+                if (content!=null){
+                    return content;
+                }
+                String responseField=extractJsonField(response, "response");
+                if (responseField!=null){
+                    return responseField;
                 }
             }
             return response.trim();
@@ -251,10 +243,10 @@ public class OpenAICompatibleClient extends BaseAIClient{
             valueStart++;
         }
         if (valueStart >= json.length()) return null;
-        if (json.charAt(valueStart)=='"'){
+        if (json.charAt(valueStart)== '"'){
             int quoteEnd=valueStart+1;
             while (quoteEnd < json.length()){
-                if (json.charAt(quoteEnd)=='"'&&json.charAt(quoteEnd - 1)!='\\'){
+                if (json.charAt(quoteEnd)== '"'&&json.charAt(quoteEnd - 1)!='\\'){
                     break;
                 }
                 quoteEnd++;
@@ -271,19 +263,19 @@ public class OpenAICompatibleClient extends BaseAIClient{
         boolean inString=false;
         for (int i=0; i < jsonArray.length(); i++){
             char c=jsonArray.charAt(i);
-            if (c=='"'&&(i ==0||jsonArray.charAt(i - 1)!='\\')){
+            if (c== '"'&&(i==0||jsonArray.charAt(i - 1)!='\\')){
                 inString=!inString;
             }
             if (!inString){
-                if (c=='{'){
-                    if (braceCount ==0){
+                if (c== '{'){
+                    if (braceCount==0){
                         start=i;
                     }
                     braceCount++;
                 }
-                else if (c=='}'){
+                else if (c== '}'){
                     braceCount--;
-                    if (braceCount ==0){
+                    if (braceCount==0){
                         objects.add(jsonArray.substring(start, i+1));
                     }
                 }
@@ -296,21 +288,42 @@ public class OpenAICompatibleClient extends BaseAIClient{
         boolean inString=false;
         for (int i=start; i < json.length(); i++){
             char c=json.charAt(i);
-            if (c=='"'&&(i ==0||json.charAt(i - 1)!='\\')){
+            if (c== '"'&&(i==0||json.charAt(i - 1)!='\\')){
                 inString=!inString;
             }
             if (!inString){
-                if (c=='['||c=='{'){
+                if (c== '['||c== '{'){
                     bracketCount++;
                 }
-                else if (c==']'||c=='}'){
+                else if (c== ']'||c== '}'){
                     bracketCount--;
-                    if (bracketCount ==0){
+                    if (bracketCount==0){
                         return i;
                     }
                 }
             }
         }
         return -1;
+    }
+    @Override
+    public boolean testConnection() throws AIException{
+        try{
+            String requestBody=buildTestRequest(promptManager.getTestPrompt());
+            String response=sendRequest(requestBody);
+            if (response==null||response.trim().isEmpty()){
+                throw new AIException("Empty response from Ollama", AIException.ErrorType.NETWORK_ERROR);
+            }
+            if (response.contains("\"error\"")){
+                String error=extractJsonField(response, "error");
+                throw new AIException("Ollama error: "+(error!=null?error:"Unknown error"),AIException.ErrorType.SERVER_ERROR);
+            }
+            return true;
+        }
+        catch (AIException e){
+            throw e;
+        }
+        catch (Exception e){
+            throw new AIException("Failed to connect to Ollama: "+e.getMessage(),AIException.ErrorType.NETWORK_ERROR, e);
+        }
     }
 }

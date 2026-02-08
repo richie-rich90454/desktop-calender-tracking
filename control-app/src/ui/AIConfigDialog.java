@@ -1,7 +1,6 @@
 package ui;
 
 import ai.*;
-import model.Event;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
@@ -165,7 +164,7 @@ public class AIConfigDialog extends JDialog{
                 endpointField.setText("https://openrouter.ai/api/v1/chat/completions");
                 break;
             case "Ollama":
-                endpointField.setText("http://localhost:11434/v1/chat/completions");
+                endpointField.setText("http://localhost:11434/api/chat");
                 break;
         }
     }
@@ -262,7 +261,13 @@ public class AIConfigDialog extends JDialog{
         worker.execute();
     }
     private AIClient createClient(String provider, String apiKey, String endpoint){
-        OpenAICompatibleClient client=new OpenAICompatibleClient(apiKey, endpoint);
+        AIClient client;
+        if ("Ollama".equals(provider)){
+            client=new OllamaClient(endpoint);
+        }
+        else{
+            client=new OpenAICompatibleClient(apiKey, endpoint);
+        }
         if (modelCombo.getSelectedItem()!=null&&!modelCombo.getSelectedItem().toString().contains("Loading")&&!modelCombo.getSelectedItem().toString().contains("Error")&&!modelCombo.getSelectedItem().toString().contains("No models")){
             client.setModel(modelCombo.getSelectedItem().toString());
         }
@@ -272,20 +277,15 @@ public class AIConfigDialog extends JDialog{
         String goal=goalTextArea.getText().trim();
         String apiKey=new String(apiKeyField.getPassword());
         String provider=(String) providerCombo.getSelectedItem();
-        
         if (goal.isEmpty()){
             JOptionPane.showMessageDialog(this, "Please enter a goal description","Error", JOptionPane.ERROR_MESSAGE);
             return false;
         }
-        
-        // Ollama doesn't require an API key, other providers do
         if (!provider.equals("Ollama") && apiKey.isEmpty()){
             JOptionPane.showMessageDialog(this, "Please enter an API key","Error", JOptionPane.ERROR_MESSAGE);
             return false;
         }
-        
-        // Only encrypt API key if it's provided (not empty)
-        if (!apiKey.isEmpty()) {
+        if (!apiKey.isEmpty()){
             try{
                 String encryptedKey=EncryptionUtil.encrypt(apiKey, ENCRYPTION_PASSWORD);
             }
@@ -294,7 +294,6 @@ public class AIConfigDialog extends JDialog{
                 return false;
             }
         }
-        
         selectedProvider=provider;
         selectedModel=(String) modelCombo.getSelectedItem();
         return true;
