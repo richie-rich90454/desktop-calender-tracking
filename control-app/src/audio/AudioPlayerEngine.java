@@ -13,7 +13,7 @@ import javax.sound.midi.MidiSystem;
 import javax.sound.midi.Sequencer;
 import javax.sound.midi.Sequence;
 
-public class AudioPlayerEngine {
+public class AudioPlayerEngine implements AutoCloseable {
     public enum PlaybackState{
         STOPPED,
         PLAYING,
@@ -513,12 +513,7 @@ public class AudioPlayerEngine {
         }
     }
     @Override
-    protected void finalize() throws Throwable{
-        try{
-            cleanup();
-        }
-        finally{
-            super.finalize();
-        }
+    public void close() {
+        cleanup();
     }
 }

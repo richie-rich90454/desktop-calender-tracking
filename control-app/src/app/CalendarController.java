@@ -36,6 +36,13 @@ import java.util.Optional;
 import javax.swing.Timer;
 
 import calendar.CalendarQuery;
+import ai.*;
+import ui.AIConfigDialog;
+import javax.swing.*;
+import java.awt.*;
+import java.time.LocalDate;
+import java.util.concurrent.ExecutionException;
+import ai.AIException;
 public class CalendarController {
     private CalendarModel model;
     private CalendarValidationService validationService;
@@ -393,5 +400,108 @@ public class CalendarController {
     }
     public List<Event> getEventsForToday(){
         return getEventsbyDate(LocalDate.now());
+    }
+    public void showAIConfigDialog(JFrame parentFrame){
+        AIConfigDialog dialog=new AIConfigDialog(parentFrame);
+        dialog.setVisible(true);
+        if (dialog.isConfigured()){
+            generateEventsWithAI(dialog.getAIClient(), dialog.getGoalDescription(), dialog.getDaysToGenerate(), dialog.shouldAvoidConflicts());
+        }
+    }
+    public void generateEventsWithAI(AIClient aiClient, String goalDescription, int days, boolean avoidConflicts){
+        if (aiClient==null){
+            JOptionPane.showMessageDialog(null, "AI client not configured", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        JDialog progressDialog=createProgressDialog();
+        progressDialog.setVisible(true);
+        SwingWorker<List<Event>, Void> worker=new SwingWorker<>(){
+            private String errorMessage;
+            @Override
+            protected List<Event> doInBackground() throws Exception{
+                try{
+                    LocalDate startDate=LocalDate.now();
+                    List<Event> existingEvents=avoidConflicts?getallEvents():new ArrayList<>();
+                    return aiClient.generateEvents(goalDescription, startDate, days, existingEvents);
+                }
+                catch (AIException e){
+                    errorMessage=e.getMessage();
+                    return new ArrayList<>();
+                }
+                catch (Exception e){
+                    errorMessage="Unexpected error: "+e.getMessage();
+                    return new ArrayList<>();
+                }
+            }
+            @Override
+            protected void done(){
+                progressDialog.dispose();
+                try{
+                    List<Event> generatedEvents=get();
+                    if (generatedEvents.isEmpty()){
+                        if (errorMessage!=null){
+                            JOptionPane.showMessageDialog(null, 
+                                "Failed to generate events: "+errorMessage, "Error", JOptionPane.ERROR_MESSAGE);
+                        }
+                        else{
+                            JOptionPane.showMessageDialog(null, 
+                                "No events were generated. Please try a different goal.", "Info", JOptionPane.INFORMATION_MESSAGE);
+                        }
+                        return;
+                    }
+                    List<Event> addedEvents=addMultipleEvents(generatedEvents);
+                    if (addedEvents.isEmpty()){
+                        JOptionPane.showMessageDialog(null, 
+                            "Generated events conflict with existing events.", "Conflict", JOptionPane.WARNING_MESSAGE);
+                    }
+                    else{
+                        JOptionPane.showMessageDialog(null, 
+                            "Successfully added "+addedEvents.size()+" events!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                    }
+                    
+                }
+                catch (Exception e){
+                    JOptionPane.showMessageDialog(null, "Error processing AI response: "+e.getMessage(),  "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        };
+        worker.execute();
+    }
+    private JDialog createProgressDialog(){
+        JDialog dialog=new JDialog((Frame) null, "Generating Events", true);
+        dialog.setLayout(new BorderLayout());
+        JLabel label=new JLabel("Generating events with AI... Please wait.", SwingConstants.CENTER);
+        label.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        dialog.add(label, BorderLayout.CENTER);
+        dialog.setSize(300, 150);
+        dialog.setLocationRelativeTo(null);
+        dialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+        return dialog;
+    }
+    public boolean testAIConnection(AIClient aiClient){
+        if (aiClient==null){
+            return false;
+        }
+        try{
+            return aiClient.testConnection();
+        }
+        catch (Exception e){
+            return false;
+        }
+    }
+    public String getAIUsageStats(AIClient aiClient){
+        if (aiClient==null){
+            return "AI client not configured";
+        }
+        AIClient.UsageStats lastStats=aiClient.getLastUsageStats();
+        AIClient.UsageStats totalStats=aiClient.getTotalUsageStats();
+        return String.format(
+            "Last request: %d prompt+%d completion tokens=$%.4f\n" +
+            "Total usage: %d prompt+%d completion tokens=$%.4f",
+            lastStats.getPromptTokens(), lastStats.getCompletionTokens(), 
+            lastStats.getEstimatedCost(),
+            totalStats.getPromptTokens(), totalStats.getCompletionTokens(),
+            totalStats.getEstimatedCost()
+        );
     }
 }

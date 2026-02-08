@@ -232,6 +232,13 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
         navButtons.setBackground(NEUTRAL_BG);
         navButtons.add(prevBtn);
         navButtons.add(todayBtn);
+        JButton aiPopulateBtn=EventEditor.UIComponentFactory.createPrimaryButton("Populate by AI", PRIMARY_GREEN);
+        aiPopulateBtn.addActionListener(new java.awt.event.ActionListener(){
+            public void actionPerformed(java.awt.event.ActionEvent e){
+                controller.showAIConfigDialog(CalendarFrame.this);
+            }
+        });
+        navButtons.add(aiPopulateBtn);
         navButtons.add(nextBtn);
         navigationPanel.add(navButtons, BorderLayout.WEST);
         navigationPanel.add(monthYearLabel, BorderLayout.CENTER);
