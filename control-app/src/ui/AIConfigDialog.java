@@ -53,8 +53,7 @@ public class AIConfigDialog extends JDialog{
     private final JCheckBox avoidConflictsCheck;
     private AIClient currentClient;
     private boolean configured=false;
-    private String selectedProvider;
-    private String selectedModel;
+
     public AIConfigDialog(Frame owner){
         super(owner, "AI Configuration", true);
         String[] providers={"OpenAI", "DeepSeek", "OpenRouter", "Ollama"};
@@ -71,7 +70,14 @@ public class AIConfigDialog extends JDialog{
         setupUI();
         setupEvents();
         loadSavedSettings();
+        addWindowListener(new WindowAdapter(){
+            @Override
+            public void windowClosing(WindowEvent e){
+                cleanup();
+            }
+        });
     }
+
     private void setupUI(){
         setLayout(new BorderLayout(10, 10));
         JPanel mainPanel=new JPanel(new BorderLayout(10, 10));
@@ -82,23 +88,28 @@ public class AIConfigDialog extends JDialog{
         gbc.insets=new Insets(5, 5, 5, 5);
         gbc.fill=GridBagConstraints.HORIZONTAL;
         gbc.anchor=GridBagConstraints.WEST;
-        gbc.gridx=0; gbc.gridy=0;
+        gbc.gridx=0; 
+        gbc.gridy=0;
         configPanel.add(new JLabel("Provider:"), gbc);
         gbc.gridx=1;
         configPanel.add(providerCombo, gbc);
-        gbc.gridx=0; gbc.gridy=1;
+        gbc.gridx=0; 
+        gbc.gridy=1;
         configPanel.add(new JLabel("Endpoint:"), gbc);
         gbc.gridx=1;
         configPanel.add(endpointField, gbc);
-        gbc.gridx=0; gbc.gridy=2;
+        gbc.gridx=0; 
+        gbc.gridy=2;
         configPanel.add(new JLabel("API Key:"), gbc);
         gbc.gridx=1;
         configPanel.add(apiKeyField, gbc);
-        gbc.gridx=0; gbc.gridy=3;
+        gbc.gridx=0; 
+        gbc.gridy=3;
         configPanel.add(new JLabel("Model:"), gbc);
         gbc.gridx=1;
         configPanel.add(modelCombo, gbc);
-        gbc.gridx=1; gbc.gridy=4;
+        gbc.gridx=1; 
+        gbc.gridy=4;
         gbc.anchor=GridBagConstraints.EAST;
         configPanel.add(testButton, gbc);
         JPanel goalPanel=new JPanel(new BorderLayout(5, 5));
@@ -107,7 +118,7 @@ public class AIConfigDialog extends JDialog{
         goalTextArea.setWrapStyleWord(true);
         JScrollPane goalScroll=new JScrollPane(goalTextArea);
         goalPanel.add(goalScroll, BorderLayout.CENTER);
-        goalTextArea.setText("Example: I want to learn Python programming over the next week. "+"I have 2 hours available each weekday evening and 4 hours on weekends.");
+        goalTextArea.setText("Example: I want to learn Python programming over the next week. I have 2 hours available each weekday evening and 4 hours on weekends.");
         JPanel optionsPanel=new JPanel(new GridLayout(2, 1, 5, 5));
         optionsPanel.setBorder(new TitledBorder("Generation Options"));
         JPanel daysPanel=new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -124,25 +135,28 @@ public class AIConfigDialog extends JDialog{
         mainPanel.add(optionsPanel, BorderLayout.SOUTH);
         add(mainPanel, BorderLayout.CENTER);
         add(buttonPanel, BorderLayout.SOUTH);
-        updateEndpointForProvider((String) providerCombo.getSelectedItem());
+        updateEndpointForProvider((String)providerCombo.getSelectedItem());
         pack();
         setLocationRelativeTo(getOwner());
     }
+
     private void setupEvents(){
-        providerCombo.addActionListener(e ->{
-            String provider=(String) providerCombo.getSelectedItem();
+        providerCombo.addActionListener(e->{
+            String provider=(String)providerCombo.getSelectedItem();
             updateEndpointForProvider(provider);
             clearModelList();
         });
-        testButton.addActionListener(e -> testConnection());
-        saveButton.addActionListener(e ->{
+        testButton.addActionListener(e->testConnection());
+        saveButton.addActionListener(e->{
             if (validateInput()){
                 configured=true;
+                cleanup();
                 dispose();
             }
         });
-        cancelButton.addActionListener(e ->{
+        cancelButton.addActionListener(e->{
             configured=false;
+            cleanup();
             dispose();
         });
         apiKeyField.addFocusListener(new FocusAdapter(){
@@ -152,6 +166,7 @@ public class AIConfigDialog extends JDialog{
             }
         });
     }
+
     private void updateEndpointForProvider(String provider){
         switch (provider){
             case "OpenAI":
@@ -168,20 +183,19 @@ public class AIConfigDialog extends JDialog{
                 break;
         }
     }
+
     private void clearModelList(){
         modelCombo.removeAllItems();
         modelCombo.addItem("Loading...");
     }
+
     private void loadModels(){
-        String provider=(String) providerCombo.getSelectedItem();
+        String provider=(String)providerCombo.getSelectedItem();
         String endpoint=endpointField.getText();
         String apiKey=new String(apiKeyField.getPassword());
-        
-        // Ollama doesn't require an API key, other providers do
-        if (!provider.equals("Ollama") && apiKey.isEmpty()){
+        if (!provider.equals("Ollama")&&apiKey.isEmpty()){
             return;
         }
-        
         SwingWorker<List<String>, Void> worker=new SwingWorker<>(){
             @Override
             protected List<String> doInBackground() throws Exception{
@@ -215,14 +229,13 @@ public class AIConfigDialog extends JDialog{
         };
         worker.execute();
     }
+
     private void testConnection(){
-        String provider=(String) providerCombo.getSelectedItem();
+        String provider=(String)providerCombo.getSelectedItem();
         String endpoint=endpointField.getText();
         String apiKey=new String(apiKeyField.getPassword());
-        
-        // Ollama doesn't require an API key, other providers do
-        if (!provider.equals("Ollama") && apiKey.isEmpty()){
-            JOptionPane.showMessageDialog(this, "Please enter an API key","Error", JOptionPane.ERROR_MESSAGE);
+        if (!provider.equals("Ollama")&&apiKey.isEmpty()){
+            JOptionPane.showMessageDialog(this, "Please enter an API key", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
         testButton.setEnabled(false);
@@ -247,19 +260,20 @@ public class AIConfigDialog extends JDialog{
                 try{
                     boolean success=get();
                     if (success){
-                        JOptionPane.showMessageDialog(AIConfigDialog.this,"Connection successful!", "Success",JOptionPane.INFORMATION_MESSAGE);
+                        JOptionPane.showMessageDialog(AIConfigDialog.this, "Connection successful!", "Success", JOptionPane.INFORMATION_MESSAGE);
                     }
                     else{
-                        JOptionPane.showMessageDialog(AIConfigDialog.this,"Connection failed: "+errorMessage, "Error",JOptionPane.ERROR_MESSAGE);
+                        JOptionPane.showMessageDialog(AIConfigDialog.this, "Connection failed: "+errorMessage, "Error", JOptionPane.ERROR_MESSAGE);
                     }
                 }
                 catch (Exception e){
-                    JOptionPane.showMessageDialog(AIConfigDialog.this,"Connection failed: "+e.getMessage(), "Error",JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(AIConfigDialog.this, "Connection failed: "+e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
                 }
             }
         };
         worker.execute();
     }
+
     private AIClient createClient(String provider, String apiKey, String endpoint){
         AIClient client;
         if ("Ollama".equals(provider)){
@@ -273,60 +287,70 @@ public class AIConfigDialog extends JDialog{
         }
         return client;
     }
+
     private boolean validateInput(){
         String goal=goalTextArea.getText().trim();
         String apiKey=new String(apiKeyField.getPassword());
-        String provider=(String) providerCombo.getSelectedItem();
+        String provider=(String)providerCombo.getSelectedItem();
         if (goal.isEmpty()){
-            JOptionPane.showMessageDialog(this, "Please enter a goal description","Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Please enter a goal description", "Error", JOptionPane.ERROR_MESSAGE);
             return false;
         }
-        if (!provider.equals("Ollama") && apiKey.isEmpty()){
-            JOptionPane.showMessageDialog(this, "Please enter an API key","Error", JOptionPane.ERROR_MESSAGE);
+        if (!provider.equals("Ollama")&&apiKey.isEmpty()){
+            JOptionPane.showMessageDialog(this, "Please enter an API key", "Error", JOptionPane.ERROR_MESSAGE);
             return false;
         }
         if (!apiKey.isEmpty()){
             try{
-                String encryptedKey=EncryptionUtil.encrypt(apiKey, ENCRYPTION_PASSWORD);
+                EncryptionUtil.encrypt(apiKey, ENCRYPTION_PASSWORD);
             }
             catch (Exception e){
-                JOptionPane.showMessageDialog(this,"Failed to encrypt API key: "+e.getMessage(),"Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Failed to encrypt API key: "+e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
                 return false;
             }
         }
-        selectedProvider=provider;
-        selectedModel=(String) modelCombo.getSelectedItem();
         return true;
     }
+
     private void loadSavedSettings(){
     }
+
     public boolean isConfigured(){
         return configured;
     }
+
     public AIClient getAIClient(){
         if (!configured){
             return null;
         }
         String apiKey=new String(apiKeyField.getPassword());
         String endpoint=endpointField.getText();
-        String provider=(String) providerCombo.getSelectedItem();
+        String provider=(String)providerCombo.getSelectedItem();
         AIClient client=createClient(provider, apiKey, endpoint);
-        if (selectedModel!=null&&client instanceof OpenAICompatibleClient){
-            ((OpenAICompatibleClient) client).setModel(selectedModel);
-        }
         return client;
     }
+
     public String getGoalDescription(){
         return goalTextArea.getText().trim();
     }
+
     public int getDaysToGenerate(){
-        return (Integer) daysSpinner.getValue();
+        return (Integer)daysSpinner.getValue();
     }
+
     public boolean shouldAvoidConflicts(){
         return avoidConflictsCheck.isSelected();
     }
+
+    private void cleanup(){
+        if (currentClient!=null){
+            currentClient.shutdown();
+            currentClient=null;
+        }
+    }
+
     public static void main(String[] args){
-        SwingUtilities.invokeLater(() ->{
+        SwingUtilities.invokeLater(()->{
             JFrame frame=new JFrame();
             frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             AIConfigDialog dialog=new AIConfigDialog(frame);

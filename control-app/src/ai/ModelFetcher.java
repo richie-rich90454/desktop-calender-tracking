@@ -6,7 +6,8 @@ import java.net.http.HttpResponse;
 import java.net.URI;
 import java.time.Duration;
 import java.util.*;
-
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 /*
  * Fetches available models from AI provider APIs dynamically.
  *
@@ -35,8 +36,9 @@ import java.util.*;
 
 public class ModelFetcher{
     private static final HttpClient HTTP_CLIENT=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).version(HttpClient.Version.HTTP_2).build();
-    private static final Map<String, CacheEntry> modelCache=new HashMap<>();
+    private static final ConcurrentMap<String, CacheEntry> modelCache=new ConcurrentHashMap<>();
     private static final long CACHE_DURATION_MS=5*60*1000;
+
     public static List<String> fetchModels(String provider, String apiKey, String customEndpoint) throws AIException{
         String cacheKey=provider+":"+apiKey+":"+customEndpoint;
         CacheEntry cached=modelCache.get(cacheKey);
@@ -71,26 +73,31 @@ public class ModelFetcher{
             throw new AIException("Failed to fetch models: "+e.getMessage(), AIException.ErrorType.NETWORK_ERROR, e);
         }
     }
+
     private static List<String> fetchOpenAIModels(String apiKey, String customEndpoint) throws Exception{
         String endpoint=customEndpoint!=null&&!customEndpoint.isEmpty()?customEndpoint.replace("/chat/completions", "/models"):"https://api.openai.com/v1/models";
         String response=sendModelRequest(endpoint, apiKey);
         return parseOpenAIResponse(response);
     }
+
     private static List<String> fetchDeepSeekModels(String apiKey, String customEndpoint) throws Exception{
         String endpoint=customEndpoint!=null&&!customEndpoint.isEmpty()?customEndpoint.replace("/chat/completions", "/models"):"https://api.deepseek.com/v1/models";
         String response=sendModelRequest(endpoint, apiKey);
         return parseOpenAIResponse(response);
     }
+
     private static List<String> fetchOpenRouterModels(String apiKey, String customEndpoint) throws Exception{
         String endpoint=customEndpoint!=null&&!customEndpoint.isEmpty()?customEndpoint:"https://openrouter.ai/api/v1/models";
         String response=sendModelRequest(endpoint, apiKey);
         return parseOpenRouterResponse(response);
     }
+
     private static List<String> fetchOllamaModels(String customEndpoint) throws Exception{
         String endpoint=customEndpoint!=null&&!customEndpoint.isEmpty()?customEndpoint:"http://localhost:11434/api/tags";
         String response=sendModelRequest(endpoint, null);
         return parseOllamaResponse(response);
     }
+
     private static String sendModelRequest(String endpoint, String apiKey) throws Exception{
         HttpRequest.Builder requestBuilder=HttpRequest.newBuilder().uri(URI.create(endpoint)).timeout(Duration.ofSeconds(15));
         if (apiKey!=null&&!apiKey.isEmpty()){
@@ -103,6 +110,7 @@ public class ModelFetcher{
         }
         return response.body();
     }
+
     private static List<String> parseOpenAIResponse(String json){
         List<String> models=new ArrayList<>();
         try{
@@ -119,10 +127,11 @@ public class ModelFetcher{
             Collections.sort(models);
         }
         catch (Exception e){
-            throw new RuntimeException("Failed to parse OpenAI response: "+e.getMessage(), e);
+            models=new ArrayList<>();
         }
         return models;
     }
+
     private static List<String> parseOpenRouterResponse(String json){
         List<String> models=new ArrayList<>();
         try{
@@ -136,10 +145,11 @@ public class ModelFetcher{
             Collections.sort(models);
         }
         catch (Exception e){
-            throw new RuntimeException("Failed to parse OpenRouter response: "+e.getMessage(), e);
+            models=new ArrayList<>();
         }
         return models;
     }
+
     private static List<String> parseOllamaResponse(String json){
         List<String> models=new ArrayList<>();
         try{
@@ -153,74 +163,65 @@ public class ModelFetcher{
             Collections.sort(models);
         }
         catch (Exception e){
-            throw new RuntimeException("Failed to parse Ollama response: "+e.getMessage(), e);
+            models=new ArrayList<>();
         }
         return models;
     }
+
     public static void clearCache(){
         modelCache.clear();
     }
+
     public static void clearCache(String provider, String apiKey, String customEndpoint){
         String cacheKey=provider+":"+apiKey+":"+customEndpoint;
         modelCache.remove(cacheKey);
     }
+
     private static String extractJsonValue(String json, String key){
         String searchKey="\""+key+"\":";
         int startIndex=json.indexOf(searchKey);
-        if (startIndex==-1)
-            return null;
-        startIndex += searchKey.length();
+        if (startIndex==-1) return null;
+        startIndex+=searchKey.length();
         int endIndex=json.indexOf(",", startIndex);
-        if (endIndex==-1)
-            endIndex=json.indexOf("}", startIndex);
-        if (endIndex==-1)
-            return null;
+        if (endIndex==-1) endIndex=json.indexOf("}", startIndex);
+        if (endIndex==-1) return null;
         String value=json.substring(startIndex, endIndex).trim();
         if (value.startsWith("\"")&&value.endsWith("\"")){
-            value=value.substring(1, value.length() - 1);
+            value=value.substring(1, value.length()-1);
         }
         return value;
     }
+
     private static List<String> extractJsonArray(String json, String key){
         List<String> result=new ArrayList<>();
         String searchKey=key.isEmpty() ?"[":"\""+key+"\":";
         int startIndex=json.indexOf(searchKey);
-        if (startIndex==-1)
-            return result;
+        if (startIndex==-1) return result;
         if (!key.isEmpty()){
-            startIndex += searchKey.length();
+            startIndex+=searchKey.length();
             startIndex=json.indexOf("[", startIndex);
-            if (startIndex==-1)
-                return result;
+            if (startIndex==-1) return result;
         }
         int bracketCount=1;
         int currentIndex=startIndex+1;
-        while (currentIndex < json.length()&&bracketCount > 0){
+        while (currentIndex<json.length()&&bracketCount>0){
             char c=json.charAt(currentIndex);
-            if (c=='[')
-                bracketCount++;
-            else if (c==']')
-                bracketCount--;
+            if (c=='[') bracketCount++;
+            else if (c==']') bracketCount--;
             currentIndex++;
         }
-        if (bracketCount!=0)
-            return result;
-        String arrayContent=json.substring(startIndex+1, currentIndex - 1).trim();
-        if (arrayContent.isEmpty())
-            return result;
+        if (bracketCount!=0) return result;
+        String arrayContent=json.substring(startIndex+1, currentIndex-1).trim();
+        if (arrayContent.isEmpty()) return result;
         StringBuilder currentItem=new StringBuilder();
         int nestedBraces=0;
         int nestedBrackets=0;
-        for (int i=0; i < arrayContent.length(); i++){
+        for (int i=0; i<arrayContent.length(); i++){
             char c=arrayContent.charAt(i);
-            if (c=='{')
-                nestedBraces++;
-            else if (c=='}')
-                nestedBraces--;
-            else if (c=='[')
-                nestedBrackets++;
-            else if (c==']')
-                nestedBrackets--;
+            if (c=='{') nestedBraces++;
+            else if (c=='}') nestedBraces--;
+            else if (c=='[') nestedBrackets++;
+            else if (c==']') nestedBrackets--;
             if (c==','&&nestedBraces==0&&nestedBrackets==0){
                 String item=currentItem.toString().trim();
                 if (!item.isEmpty()){
@@ -238,6 +239,7 @@ public class ModelFetcher{
         }
         return result;
     }
+
     private static class CacheEntry{
         final List<String> models;
         final long timestamp;
@@ -246,7 +248,7 @@ public class ModelFetcher{
             this.timestamp=System.currentTimeMillis();
         }
         boolean isExpired(){
-            return System.currentTimeMillis() - timestamp > CACHE_DURATION_MS;
+            return System.currentTimeMillis()-timestamp>CACHE_DURATION_MS;
         }
     }
 }

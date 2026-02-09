@@ -48,11 +48,11 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
     private JLabel eventCountLabel;
     private JButton addEventButton;
     private JPanel viewModePanel;
-    private DateTimeFormatter monthYearFormatter=DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH);
+    //private DateTimeFormatter monthYearFormatter=DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH);
     private DateTimeFormatter dateFormatter=DateTimeFormatter.ofPattern("EEEE, MMMM d", Locale.ENGLISH);
     private static DateTimeFormatter timeFormatter=DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH);
-    private DateTimeFormatter dayFormatter=DateTimeFormatter.ofPattern("EEEE", Locale.ENGLISH);
-    private DateTimeFormatter shortDayFormatter=DateTimeFormatter.ofPattern("EEE", Locale.ENGLISH);
+    //private DateTimeFormatter dayFormatter=DateTimeFormatter.ofPattern("EEEE", Locale.ENGLISH);
+    ///private DateTimeFormatter shortDayFormatter=DateTimeFormatter.ofPattern("EEE", Locale.ENGLISH);
     private LocalDate currentSelectedDate;
     private JScrollPane calendarScrollPane;
     private JLabel statusLabel;

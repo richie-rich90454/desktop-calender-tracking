@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.URI;
-
+import java.time.Duration;
 /*
  * Ollama client for local AI models
  *
@@ -21,42 +21,42 @@ import java.net.URI;
  * Supports local Ollama models without API key requirement.
  * Uses different API endpoint format than OpenAI.
  */
-
 public class OllamaClient extends BaseAIClient{
     private static final String DEFAULT_ENDPOINT="http://localhost:11434/api/chat";
     private static final String DEFAULT_MODEL="llama3.2";
     private final AIPromptManager promptManager;
     private List<String> supportedModels=new ArrayList<>();
     private boolean modelsFetched=false;
+
     public OllamaClient(){
         super();
         this.endpoint=DEFAULT_ENDPOINT;
         this.model=DEFAULT_MODEL;
         this.promptManager=new AIPromptManager();
     }
+
     public OllamaClient(String endpoint){
         this();
         if (endpoint!=null&&!endpoint.isEmpty()){
             this.endpoint=endpoint;
         }
     }
+
     @Override
     public String getProviderName(){
         return "Ollama (Local)";
     }
+
     @Override
     public boolean isOfflineCapable(){
         return true;
     }
-    @Override
-    public double getCostPerThousandTokens(){
-        return 0.0;
-    }
+
     @Override
     public int getMaxTokensPerRequest(){
         return 8192;
     }
-    
+
     @Override
     public List<String> getSupportedModels(){
         if (!modelsFetched){
@@ -71,55 +71,56 @@ public class OllamaClient extends BaseAIClient{
         }
         return new ArrayList<>(supportedModels);
     }
-    
+
     @Override
-    public List<Event> generateEvents(String goalDescription, LocalDate startDate, int days, List<Event> existingEvents) throws AIException {
+    public List<Event> generateEvents(String goalDescription, LocalDate startDate, int days, List<Event> existingEvents) throws AIException{
         return generateEvents(goalDescription, startDate, days, existingEvents, null);
     }
-    
+
     @Override
-    public List<Event> generateEvents(String goalDescription, LocalDate startDate, int days, List<Event> existingEvents, ProgressCallback callback) throws AIException {
-        try {
-            if (callback != null) callback.update("Building request for Ollama...");
-            String requestBody = buildEventGenerationRequest(goalDescription, startDate, days, existingEvents);
-            
-            if (callback != null) callback.update("Sending request to local Ollama API...");
-            String response = sendRequest(requestBody);
-            
+    public List<Event> generateEvents(String goalDescription, LocalDate startDate, int days, List<Event> existingEvents, ProgressCallback callback) throws AIException{
+        try{
+            if (callback!=null) callback.update("Building request for Ollama...");
+            String requestBody=buildEventGenerationRequest(goalDescription, startDate, days, existingEvents);
+            if (callback!=null) callback.update("Sending request to local Ollama API...");
+            String response=sendRequest(requestBody);
             updateUsageStats(estimateTokens(requestBody), estimateTokens(response));
-            
-            if (callback != null) callback.update("Parsing Ollama response...");
-            List<Event> events = parseResponse(response, startDate, days, existingEvents);
-            
-            if (callback != null) {
-                callback.updateSuccess("Successfully parsed " + events.size() + " events from Ollama");
-                for (Event event : events) {
+            if (callback!=null) callback.update("Parsing Ollama response...");
+            List<Event> events=parseResponse(response, startDate, days, existingEvents);
+            if (callback!=null){
+                callback.updateSuccess("Successfully parsed "+events.size()+" events from Ollama");
+                for (Event event:events){
                     if (callback.isCancelled()) break;
                     callback.updateEvent(event);
                 }
             }
-            
             return events;
-        } catch (AIException e) {
-            if (callback != null) callback.updateError("Ollama Error: " + e.getMessage());
-            throw e;
-        } catch (Exception e) {
-            if (callback != null) callback.updateError("Unexpected error: " + e.getMessage());
-            throw new AIException("Failed to generate events: " + e.getMessage(), 
-                                 AIException.ErrorType.OTHER, e);
         }
-    }
-    private List<String> fetchModelsViaAPI() throws AIException{
-        try{
-            String modelsEndpoint="http://localhost:11434/api/tags";
-            HttpRequest request=HttpRequest.newBuilder().uri(URI.create(modelsEndpoint)).GET().build();
-            String response=httpClient.send(request, HttpResponse.BodyHandlers.ofString()).body();
-            return parseModelsFromResponse(response);
+        catch (AIException e){
+            if (callback!=null) callback.updateError("Ollama Error: "+e.getMessage());
+            throw e;
         }
         catch (Exception e){
-            throw new AIException("Failed to fetch models from Ollama API: "+e.getMessage(),AIException.ErrorType.NETWORK_ERROR, e);
+            if (callback!=null) callback.updateError("Unexpected error: "+e.getMessage());
+            throw new AIException("Failed to generate events: "+e.getMessage(), AIException.ErrorType.OTHER, e);
         }
     }
+
+    private List<String> fetchModelsViaAPI() throws AIException{
+        try{
+            String modelsEndpoint=endpoint.replace("/api/chat", "/api/tags");
+            HttpRequest request=HttpRequest.newBuilder().uri(URI.create(modelsEndpoint)).timeout(Duration.ofSeconds(10)).GET().build();
+            HttpResponse<String> response=httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode()!=200){
+                throw new AIException("Failed to fetch models: HTTP "+response.statusCode(), AIException.ErrorType.SERVER_ERROR);
+            }
+            return parseModelsFromResponse(response.body());
+        }
+        catch (Exception e){
+            throw new AIException("Failed to fetch models from Ollama API: "+e.getMessage(), AIException.ErrorType.NETWORK_ERROR, e);
+        }
+    }
+
     private List<String> parseModelsFromResponse(String response){
         List<String> models=new ArrayList<>();
         try{
@@ -142,13 +143,13 @@ public class OllamaClient extends BaseAIClient{
             }
         }
         catch (Exception e){
-            System.err.println("Error parsing Ollama models: "+e.getMessage());
         }
         if (models.isEmpty()){
             return getDefaultModels();
         }
         return models;
     }
+
     private List<String> getDefaultModels(){
         List<String> defaultModels=new ArrayList<>();
         defaultModels.add("llama3.2");
@@ -159,14 +160,17 @@ public class OllamaClient extends BaseAIClient{
         defaultModels.add("phi");
         return defaultModels;
     }
+
     public void refreshModels() throws AIException{
         supportedModels=fetchModelsViaAPI();
         modelsFetched=true;
     }
+
     @Override
     protected HttpRequest buildHttpRequest(String requestBody){
         return HttpRequest.newBuilder().uri(URI.create(endpoint)).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(requestBody)).build();
     }
+
     @Override
     protected String buildTestRequest(String prompt){
         return String.format("""
@@ -182,6 +186,7 @@ public class OllamaClient extends BaseAIClient{
         }
         """, model, AIJsonParser.escapeJsonString(prompt));
     }
+
     protected String buildEventGenerationRequest(String goalDescription, LocalDate startDate, int days, List<Event> existingEvents){
         String systemPrompt=promptManager.getSystemPrompt();
         String userPrompt=promptManager.getEventGenerationPrompt(goalDescription, startDate, days, existingEvents);
@@ -205,8 +210,9 @@ public class OllamaClient extends BaseAIClient{
                 "num_predict": 2000
             }
         }
-        """, model,AIJsonParser.escapeJsonString(systemPrompt),AIJsonParser.escapeJsonString(userPrompt));
+        """, model, AIJsonParser.escapeJsonString(systemPrompt), AIJsonParser.escapeJsonString(userPrompt));
     }
+
     @Override
     protected List<Event> parseResponse(String response, LocalDate startDate, int days, List<Event> existingEvents) throws AIException{
         try{
@@ -217,13 +223,14 @@ public class OllamaClient extends BaseAIClient{
             return AIJsonParser.parseAIResponse(content);
         }
         catch (AIException e){
-            String errorMsg=e.getMessage()+"\nRaw response: "+(response.length() >500?response.substring(0, 500)+"...":response);
+            String errorMsg=e.getMessage()+"\nRaw response: "+(response.length()>500?response.substring(0, 500)+"...":response);
             throw new AIException(errorMsg, e.getErrorType(), e);
         }
         catch (Exception e){
-            throw new AIException("Failed to parse response: "+e.getMessage(),AIException.ErrorType.INVALID_RESPONSE, e);
+            throw new AIException("Failed to parse response: "+e.getMessage(), AIException.ErrorType.INVALID_RESPONSE, e);
         }
     }
+
     private String extractContentFromResponse(String response){
         try{
             if (response.trim().startsWith("{")){
@@ -256,6 +263,7 @@ public class OllamaClient extends BaseAIClient{
             return response.trim();
         }
     }
+
     private String extractJsonField(String json, String fieldName){
         String pattern="\""+fieldName+"\"";
         int pos=json.indexOf(pattern);
@@ -263,41 +271,42 @@ public class OllamaClient extends BaseAIClient{
         int colon=json.indexOf(":", pos+pattern.length());
         if (colon==-1) return null;
         int valueStart=colon+1;
-        while (valueStart < json.length()&&Character.isWhitespace(json.charAt(valueStart))){
+        while (valueStart<json.length()&&Character.isWhitespace(json.charAt(valueStart))){
             valueStart++;
         }
-        if (valueStart >= json.length()) return null;
-        if (json.charAt(valueStart)== '"'){
+        if (valueStart>=json.length()) return null;
+        if (json.charAt(valueStart)=='"'){
             int quoteEnd=valueStart+1;
-            while (quoteEnd < json.length()){
-                if (json.charAt(quoteEnd)== '"'&&json.charAt(quoteEnd - 1)!='\\'){
+            while (quoteEnd<json.length()){
+                if (json.charAt(quoteEnd)=='"'&&json.charAt(quoteEnd-1)!='\\'){
                     break;
                 }
                 quoteEnd++;
             }
-            if (quoteEnd >= json.length()) return null;
+            if (quoteEnd>=json.length()) return null;
             return json.substring(valueStart+1, quoteEnd);
         }
         return null;
     }
+
     private String[] splitJsonObjects(String jsonArray){
         List<String> objects=new ArrayList<>();
         int start=0;
         int braceCount=0;
         boolean inString=false;
-        for (int i=0; i < jsonArray.length(); i++){
+        for (int i=0; i<jsonArray.length(); i++){
             char c=jsonArray.charAt(i);
-            if (c== '"'&&(i==0||jsonArray.charAt(i - 1)!='\\')){
+            if (c=='"'&&(i==0||jsonArray.charAt(i-1)!='\\')){
                 inString=!inString;
             }
             if (!inString){
-                if (c== '{'){
+                if (c=='{'){
                     if (braceCount==0){
                         start=i;
                     }
                     braceCount++;
                 }
-                else if (c== '}'){
+                else if (c=='}'){
                     braceCount--;
                     if (braceCount==0){
                         objects.add(jsonArray.substring(start, i+1));
@@ -307,19 +316,20 @@ public class OllamaClient extends BaseAIClient{
         }
         return objects.toArray(new String[0]);
     }
+
     private int findMatchingBracket(String json, int start){
         int bracketCount=0;
         boolean inString=false;
-        for (int i=start; i < json.length(); i++){
+        for (int i=start; i<json.length(); i++){
             char c=json.charAt(i);
-            if (c== '"'&&(i==0||json.charAt(i - 1)!='\\')){
+            if (c=='"'&&(i==0||json.charAt(i-1)!='\\')){
                 inString=!inString;
             }
             if (!inString){
-                if (c== '['||c== '{'){
+                if (c=='['||c=='{'){
                     bracketCount++;
                 }
-                else if (c== ']'||c== '}'){
+                else if (c==']'||c=='}'){
                     bracketCount--;
                     if (bracketCount==0){
                         return i;
@@ -329,6 +339,7 @@ public class OllamaClient extends BaseAIClient{
         }
         return -1;
     }
+
     @Override
     public boolean testConnection() throws AIException{
         try{
@@ -339,7 +350,7 @@ public class OllamaClient extends BaseAIClient{
             }
             if (response.contains("\"error\"")){
                 String error=extractJsonField(response, "error");
-                throw new AIException("Ollama error: "+(error!=null?error:"Unknown error"),AIException.ErrorType.SERVER_ERROR);
+                throw new AIException("Ollama error: "+(error!=null?error:"Unknown error"), AIException.ErrorType.SERVER_ERROR);
             }
             return true;
         }
@@ -347,7 +358,7 @@ public class OllamaClient extends BaseAIClient{
             throw e;
         }
         catch (Exception e){
-            throw new AIException("Failed to connect to Ollama: "+e.getMessage(),AIException.ErrorType.NETWORK_ERROR, e);
+            throw new AIException("Failed to connect to Ollama: "+e.getMessage(), AIException.ErrorType.NETWORK_ERROR, e);
         }
     }
 }

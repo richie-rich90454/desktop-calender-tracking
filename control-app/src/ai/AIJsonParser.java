@@ -16,6 +16,9 @@ public class AIJsonParser{
     private static final DateTimeFormatter DATE_FORMATTER=DateTimeFormatter.ISO_LOCAL_DATE;
     private static final DateTimeFormatter TIME_FORMATTER=DateTimeFormatter.ofPattern("HH:mm");
     public static List<Event> parseAIResponse(String jsonResponse) throws AIException{
+        if (jsonResponse==null||jsonResponse.trim().isEmpty()){
+            throw new AIException("Empty or null response from AI",AIException.ErrorType.INVALID_RESPONSE);
+        }
         try{
             String eventsArrayJson=extractEventsArray(jsonResponse);
             if (eventsArrayJson==null){
@@ -41,10 +44,10 @@ public class AIJsonParser{
             if (eventsKeyPos==-1){
                 return null;
             }
-            eventsKeyPos += "events:".length() - 1;
+            eventsKeyPos+="events:".length()-1;
         }
         else{
-            eventsKeyPos += "\"events\"".length();
+            eventsKeyPos+="\"events\"".length();
         }
         int bracketStart=json.indexOf('[', eventsKeyPos);
         if (bracketStart==-1){
@@ -118,23 +121,23 @@ public class AIJsonParser{
                 return null;
             }
             int valueStart=colonPos+1;
-            while (valueStart < json.length()&&Character.isWhitespace(json.charAt(valueStart))){
+            while (valueStart<json.length()&&Character.isWhitespace(json.charAt(valueStart))){
                 valueStart++;
             }
-            if (valueStart >= json.length()){
+            if (valueStart>=json.length()){
                 return null;
             }
             char firstChar=json.charAt(valueStart);
             if (firstChar=='"'){
                 int valueEnd=valueStart+1;
-                while (valueEnd < json.length()){
+                while (valueEnd<json.length()){
                     char c=json.charAt(valueEnd);
-                    if (c=='"'&&json.charAt(valueEnd - 1)!='\\'){
+                    if (c=='"'&&json.charAt(valueEnd-1)!='\\'){
                         break;
                     }
                     valueEnd++;
                 }
-                if (valueEnd >= json.length()){
+                if (valueEnd>=json.length()){
                     return null;
                 }
                 String value=json.substring(valueStart+1, valueEnd);
@@ -142,7 +145,7 @@ public class AIJsonParser{
             }
             else{
                 int valueEnd=valueStart;
-                while (valueEnd < json.length()&&json.charAt(valueEnd)!=','&&json.charAt(valueEnd)!='}'&&!Character.isWhitespace(json.charAt(valueEnd))){
+                while (valueEnd<json.length()&&json.charAt(valueEnd)!=','&&json.charAt(valueEnd)!='}'&&!Character.isWhitespace(json.charAt(valueEnd))){
                     valueEnd++;
                 }
                 return json.substring(valueStart, valueEnd).trim();
@@ -166,7 +169,7 @@ public class AIJsonParser{
                 String[] parts=time.split(":");
                 int hour=Integer.parseInt(parts[0]);
                 int minute=Integer.parseInt(parts[1]);
-                if (hour >=0&&hour <=23&&minute >=0&&minute <=59){
+                if (hour>=0&&hour<=23&&minute>=0&&minute<=59){
                     return String.format("%02d:%02d", hour, minute);
                 }
             }
@@ -174,14 +177,14 @@ public class AIJsonParser{
                 String[] parts=time.split(":");
                 int hour=Integer.parseInt(parts[0]);
                 int minute=Integer.parseInt(parts[1]);
-                if (hour >=0&&hour <=23&&minute >=0&&minute <=59){
+                if (hour>=0&&hour<=23&&minute>=0&&minute<=59){
                     return String.format("%02d:%02d", hour, minute);
                 }
             }
             if (time.matches("^\\d{3,4}$")&&!time.contains(":")){
                 int len=time.length();
                 int hour, minute;
-                if (len ==3){
+                if (len==3){
                     hour=Integer.parseInt(time.substring(0, 1));
                     minute=Integer.parseInt(time.substring(1, 3));
                 }
@@ -189,7 +192,7 @@ public class AIJsonParser{
                     hour=Integer.parseInt(time.substring(0, 2));
                     minute=Integer.parseInt(time.substring(2, 4));
                 }
-                if (hour >=0&&hour <=23&&minute >=0&&minute <=59){
+                if (hour>=0&&hour<=23&&minute>=0&&minute<=59){
                     return String.format("%02d:%02d", hour, minute);
                 }
             }
@@ -199,14 +202,14 @@ public class AIJsonParser{
                 if (timePart.matches("^\\d{1,2}(:\\d{2}){0,2}$")){
                     String[] parts=timePart.split(":");
                     int hour=Integer.parseInt(parts[0]);
-                    int minute=parts.length >1?Integer.parseInt(parts[1]):0;
+                    int minute=parts.length>1?Integer.parseInt(parts[1]):0;
                     if (ampm.equals("PM")&&hour!=12){
-                        hour +=12;
+                        hour+=12;
                     }
-                    else if (ampm.equals("AM")&&hour ==12){
+                    else if (ampm.equals("AM")&&hour==12){
                         hour=0;
                     }
-                    if (hour >=0&&hour <=23&&minute >=0&&minute <=59){
+                    if (hour>=0&&hour<=23&&minute>=0&&minute<=59){
                         return String.format("%02d:%02d", hour, minute);
                     }
                 }
@@ -229,21 +232,21 @@ public class AIJsonParser{
         int braceCount=0;
         boolean inString=false;
         String cleaned=jsonArray.replace("\n", "").replace("\r", "").trim();
-        for (int i=0; i < cleaned.length(); i++){
+        for (int i=0; i<cleaned.length(); i++){
             char c=cleaned.charAt(i);
-            if (c=='"'&&(i ==0||cleaned.charAt(i - 1)!='\\')){
+            if (c=='"'&&(i==0||cleaned.charAt(i-1)!='\\')){
                 inString=!inString;
             }
             if (!inString){
                 if (c=='{'){
-                    if (braceCount ==0){
+                    if (braceCount==0){
                         start=i;
                     }
                     braceCount++;
                 }
                 else if (c=='}'){
                     braceCount--;
-                    if (braceCount ==0){
+                    if (braceCount==0){
                         String obj=cleaned.substring(start, i+1);
                         objects.add(obj);
                     }
@@ -255,9 +258,9 @@ public class AIJsonParser{
     private static int findMatchingBracket(String json, int start){
         int bracketCount=0;
         boolean inString=false;
-        for (int i=start; i < json.length(); i++){
+        for (int i=start; i<json.length(); i++){
             char c=json.charAt(i);
-            if (c=='"'&&(i ==0||json.charAt(i - 1)!='\\')){
+            if (c=='"'&&(i==0||json.charAt(i-1)!='\\')){
                 inString=!inString;
             }
             if (!inString){
@@ -266,7 +269,7 @@ public class AIJsonParser{
                 }
                 else if (c==']'||c=='}'){
                     bracketCount--;
-                    if (bracketCount ==0){
+                    if (bracketCount==0){
                         return i;
                     }
                 }

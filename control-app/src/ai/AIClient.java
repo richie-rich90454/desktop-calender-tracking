@@ -44,6 +44,7 @@ public interface AIClient{
     UsageStats getLastUsageStats();
     UsageStats getTotalUsageStats();
     void resetUsageStats();
+    void shutdown();
     class UsageStats{
         private int requestCount;
         private int totalPromptTokens;
@@ -56,7 +57,7 @@ public interface AIClient{
             totalPromptTokens=0;
             totalCompletionTokens=0;
         }
-        public void addRequest(int promptTokens, int completionTokens, double costPerThousandTokens){
+        public void addRequest(int promptTokens, int completionTokens){
             requestCount++;
             totalPromptTokens+=promptTokens;
             totalCompletionTokens+=completionTokens;
