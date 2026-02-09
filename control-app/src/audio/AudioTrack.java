@@ -1,24 +1,13 @@
 package audio;
 
-/**
-*Represents a single audio track in the playlist.
- *
-*Responsibilities:
- *-Store audio file metadata
- *-Track playback state
- *-Provide file information
- *
-*Java data types used:
- *-String
- *-File
- *-long
- *
-*Design intent:
-*Lightweight representation of audio files with playback state.
- */
 import java.io.File;
 import java.util.Objects;
 
+/**
+ * Represents a single audio track with metadata, playback state, and file
+ * information. Provides lightweight encapsulation of audio files for playlist
+ * management with track numbering, duration tracking, and format validation.
+ */
 public class AudioTrack {
     private static final String PREFIX_FORMAT="%03d";
     private File audioFile;
@@ -31,17 +20,12 @@ public class AudioTrack {
         this.audioFile=audioFile;
         this.trackNumber=trackNumber;
         this.displayName=extractDisplayName(audioFile.getName());
-        this.duration=0;
-        this.isPlaying=false;
-        this.currentPosition=0;
     }
     public AudioTrack(File audioFile, int trackNumber, String displayName, long duration){
         this.audioFile=audioFile;
         this.trackNumber=trackNumber;
-        this.displayName=displayName!=null ? displayName : extractDisplayName(audioFile.getName());
+        this.displayName=displayName != null ? displayName : extractDisplayName(audioFile.getName());
         this.duration=duration;
-        this.isPlaying=false;
-        this.currentPosition=0;
     }
     private String extractDisplayName(String fileName){
         if (fileName.matches("^\\d{3}_.*")){
@@ -71,7 +55,7 @@ public class AudioTrack {
         return String.format(PREFIX_FORMAT, trackNumber);
     }
     public String getPrefixedFileName(){
-        return String.format(PREFIX_FORMAT+"_%s", trackNumber, audioFile.getName());
+        return String.format(PREFIX_FORMAT + "_%s", trackNumber, audioFile.getName());
     }
     public long getDuration(){
         return duration;
@@ -80,18 +64,18 @@ public class AudioTrack {
         this.duration=duration;
     }
     public String getFormattedDuration(){
-        if (duration<=0){
+        if (duration <= 0){
             return "--:--";
         }
-        long minutes=(duration/1000)/60;
-        long seconds=(duration/1000)%60;
+        long minutes=(duration / 1000) / 60;
+        long seconds=(duration / 1000) % 60;
         return String.format("%02d:%02d", minutes, seconds);
     }
     public boolean isPlaying(){
         return isPlaying;
     }
     public void setPlaying(boolean playing){
-        this.isPlaying=playing;
+        isPlaying=playing;
     }
     public long getCurrentPosition(){
         return currentPosition;
@@ -100,28 +84,28 @@ public class AudioTrack {
         this.currentPosition=position;
     }
     public String getFormattedPosition(){
-        if (currentPosition<=0){
+        if (currentPosition <= 0){
             return "00:00";
         }
-        long minutes=(currentPosition/1000)/60;
-        long seconds=(currentPosition/1000)%60;
+        long minutes=(currentPosition / 1000) / 60;
+        long seconds=(currentPosition / 1000) % 60;
         return String.format("%02d:%02d", minutes, seconds);
     }
     public double getPlaybackProgress(){
-        if (duration<=0){
+        if (duration <= 0){
             return 0.0;
         }
-        return (double) currentPosition/duration;
+        return (double) currentPosition / duration;
     }
     public boolean isSupportedFormat(){
         String name=audioFile.getName().toLowerCase();
-        return name.endsWith(".mp3")||name.endsWith(".wav")||name.endsWith(".mid")||name.endsWith(".midi")||name.endsWith(".ogg")||name.endsWith(".flac");
+        return name.endsWith(".mp3") || name.endsWith(".wav") || name.endsWith(".mid")|| name.endsWith(".midi") || name.endsWith(".ogg") || name.endsWith(".flac");
     }
     public String getFileExtension(){
         String name=audioFile.getName();
         int dotIndex=name.lastIndexOf('.');
-        if (dotIndex>0&&dotIndex<name.length()-1){
-            return name.substring(dotIndex+1).toLowerCase();
+        if (dotIndex > 0 && dotIndex < name.length() - 1){
+            return name.substring(dotIndex + 1).toLowerCase();
         }
         return "";
     }
@@ -130,26 +114,22 @@ public class AudioTrack {
     }
     public String getFormattedFileSize(){
         long size=getFileSize();
-        if (size<1024){
-            return size+" B";
+        if (size < 1024){
+            return size + " B";
         }
-        else if (size<1024*1024){
-            return String.format("%.1f KB", size/1024.0);
+        else if (size < 1024 * 1024){
+            return String.format("%.1f KB", size / 1024.0);
         }
         else{
-            return String.format("%.1f MB", size/(1024.0*1024.0));
+            return String.format("%.1f MB", size / (1024.0 * 1024.0));
         }
     }
     @Override
     public boolean equals(Object o){
-        if (this==o){
-            return true;
-        }
-        if (o==null||getClass()!=o.getClass()){
-            return false;
-        }
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         AudioTrack that=(AudioTrack) o;
-        return trackNumber==that.trackNumber&&Objects.equals(audioFile.getAbsolutePath(), that.audioFile.getAbsolutePath());
+        return trackNumber == that.trackNumber && Objects.equals(audioFile.getAbsolutePath(), that.audioFile.getAbsolutePath());
     }
     @Override
     public int hashCode(){

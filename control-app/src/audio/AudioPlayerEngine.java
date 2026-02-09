@@ -1,24 +1,17 @@
 package audio;
 
+import javax.sound.sampled.*;
+import javax.sound.midi.*;
 import java.io.IOException;
-import javax.sound.sampled.AudioFormat;
-import javax.sound.sampled.AudioInputStream;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.Clip;
-import javax.sound.sampled.DataLine;
-import javax.sound.sampled.FloatControl;
-import javax.sound.sampled.LineUnavailableException;
-import javax.sound.sampled.UnsupportedAudioFileException;
-import javax.sound.midi.MidiSystem;
-import javax.sound.midi.Sequencer;
-import javax.sound.midi.Sequence;
 
+/**
+ * Core audio playback engine supporting multiple audio formats (WAV, MIDI, MP3)
+ * with playback control, volume management, and position tracking. Implements
+ * AutoCloseable for resource management and provides cross-platform audio
+ * playback with Java Sound API and fallback system commands.
+ */
 public class AudioPlayerEngine implements AutoCloseable {
-    public enum PlaybackState{
-        STOPPED,
-        PLAYING,
-        PAUSED
-    }
+    public enum PlaybackState{STOPPED, PLAYING, PAUSED}
     private static final float MIN_VOLUME=-80.0f;
     private static final float MAX_VOLUME=6.0f;
     private AudioTrack currentTrack;
@@ -33,39 +26,27 @@ public class AudioPlayerEngine implements AutoCloseable {
     private Thread positionUpdater;
     private boolean running;
     public AudioPlayerEngine(){
-        this.currentTrack=null;
         this.playbackState=PlaybackState.STOPPED;
         this.volume=0.0f;
-        this.muted=false;
-        this.pausePosition=0;
-        this.trackDuration=0;
         this.running=true;
     }
     public boolean play(AudioTrack track){
-        if (track==null||!track.isSupportedFormat()){
+        if (track == null || !track.isSupportedFormat()){
             return false;
         }
         stop();
         try{
             currentTrack=track;
             String extension=track.getFileExtension();
-            switch (extension){
-                case "wav":
-                    return playWav(track);
-                case "mid":
-                case "midi":
-                    return playMidi(track);
-                case "mp3":
-                    return playMp3(track);
-                default:
-                    System.err.println("Unsupported audio format: "+extension);
-                    return false;
-            }
+            return switch (extension){
+                case "wav" -> playWav(track);
+                case "mid", "midi" -> playMidi(track);
+                case "mp3" -> playMp3(track);
+                default -> false;
+            };
         }
         catch (Exception e){
-            System.err.println("Error playing audio track: "+e.getMessage());
-            e.printStackTrace();
-            return false;
+            throw new RuntimeException("Error playing audio track: " + e.getMessage(), e);
         }
     }
     private boolean playMp3(AudioTrack track){
@@ -73,13 +54,11 @@ public class AudioPlayerEngine implements AutoCloseable {
             return playMp3WithJavaSound(track);
         }
         catch (Exception e1){
-            System.err.println("Java Sound MP3 failed: "+e1.getMessage());
             try{
                 return playMp3WithSystemCommand(track);
             }
             catch (Exception e2){
-                System.err.println("System command MP3 failed: "+e2.getMessage());
-                return false;
+                throw new RuntimeException("MP3 playback failed: " + e2.getMessage(), e2);
             }
         }
     }
@@ -88,13 +67,13 @@ public class AudioPlayerEngine implements AutoCloseable {
             AudioInputStream audioStream=AudioSystem.getAudioInputStream(track.getAudioFile());
             AudioFormat baseFormat=audioStream.getFormat();
             AudioFormat decodedFormat=new AudioFormat(
-                AudioFormat.Encoding.PCM_SIGNED,
-                baseFormat.getSampleRate(),
-                16,
-                baseFormat.getChannels(),
-                baseFormat.getChannels()*2,
-                baseFormat.getSampleRate(),
-                false
+                    AudioFormat.Encoding.PCM_SIGNED,
+                    baseFormat.getSampleRate(),
+                    16,
+                    baseFormat.getChannels(),
+                    baseFormat.getChannels() * 2,
+                    baseFormat.getSampleRate(),
+                    false
             );
             AudioInputStream decodedStream=AudioSystem.getAudioInputStream(decodedFormat, audioStream);
             DataLine.Info info=new DataLine.Info(Clip.class, decodedFormat);
@@ -104,14 +83,14 @@ public class AudioPlayerEngine implements AutoCloseable {
                 FloatControl gainControl=(FloatControl) audioClip.getControl(FloatControl.Type.MASTER_GAIN);
                 gainControl.setValue(volume);
             }
-            audioClip.addLineListener(event->{
-                if (event.getType()==javax.sound.sampled.LineEvent.Type.STOP){
+            audioClip.addLineListener(event ->{
+                if (event.getType() == javax.sound.sampled.LineEvent.Type.STOP){
                     playbackState=PlaybackState.STOPPED;
                     track.setPlaying(false);
                     cleanupClip();
                 }
             });
-            trackDuration=audioClip.getMicrosecondLength()/1000;
+            trackDuration=audioClip.getMicrosecondLength() / 1000;
             track.setDuration(trackDuration);
             audioClip.start();
             playbackState=PlaybackState.PLAYING;
@@ -127,10 +106,10 @@ public class AudioPlayerEngine implements AutoCloseable {
         String os=System.getProperty("os.name").toLowerCase();
         ProcessBuilder pb;
         if (os.contains("win")){
-            pb=new ProcessBuilder("powershell", "-c", 
-                "$player=New-Object -ComObject WMPlayer.OCX;"+
-                "$player.URL='"+track.getAudioFile().getAbsolutePath().replace("\\", "\\\\")+"';"+
-                "while($player.playState -ne 1){Start-Sleep -Milliseconds 100}");
+            pb=new ProcessBuilder("powershell", "-c",
+                    "$player=New-Object -ComObject WMPlayer.OCX;" +
+                            "$player.URL='" + track.getAudioFile().getAbsolutePath().replace("\\", "\\\\") + "';" +
+                            "while($player.playState -ne 1){Start-Sleep -Milliseconds 100}");
         }
         else if (os.contains("mac")){
             pb=new ProcessBuilder("afplay", track.getAudioFile().getAbsolutePath());
@@ -144,7 +123,7 @@ public class AudioPlayerEngine implements AutoCloseable {
         startPositionUpdater();
         return true;
     }
-    private boolean playWav(AudioTrack track) throws UnsupportedAudioFileException, IOException, LineUnavailableException{
+    private boolean playWav(AudioTrack track) throws Exception{
         AudioInputStream audioStream=AudioSystem.getAudioInputStream(track.getAudioFile());
         AudioFormat format=audioStream.getFormat();
         DataLine.Info info=new DataLine.Info(Clip.class, format);
@@ -154,14 +133,14 @@ public class AudioPlayerEngine implements AutoCloseable {
             FloatControl gainControl=(FloatControl) audioClip.getControl(FloatControl.Type.MASTER_GAIN);
             gainControl.setValue(volume);
         }
-        audioClip.addLineListener(event->{
-            if (event.getType()==javax.sound.sampled.LineEvent.Type.STOP){
+        audioClip.addLineListener(event ->{
+            if (event.getType() == javax.sound.sampled.LineEvent.Type.STOP){
                 playbackState=PlaybackState.STOPPED;
                 track.setPlaying(false);
                 cleanupClip();
             }
         });
-        trackDuration=audioClip.getMicrosecondLength()/1000;
+        trackDuration=audioClip.getMicrosecondLength() / 1000;
         track.setDuration(trackDuration);
         audioClip.start();
         playbackState=PlaybackState.PLAYING;
@@ -174,16 +153,16 @@ public class AudioPlayerEngine implements AutoCloseable {
         midiSequencer=MidiSystem.getSequencer();
         midiSequencer.open();
         midiSequencer.setSequence(sequence);
-        if (midiSequencer instanceof javax.sound.midi.Synthesizer){
-            javax.sound.midi.Synthesizer synthesizer=(javax.sound.midi.Synthesizer) midiSequencer;
-            javax.sound.midi.MidiChannel[] channels=synthesizer.getChannels();
-            for (javax.sound.midi.MidiChannel channel:channels){
-                if (channel!=null){
-                    channel.controlChange(7, (int) ((volume+80.0f)/86.0f*127));
+        if (midiSequencer instanceof Synthesizer){
+            Synthesizer synthesizer=(Synthesizer) midiSequencer;
+            MidiChannel[] channels=synthesizer.getChannels();
+            for (MidiChannel channel : channels){
+                if (channel != null){
+                    channel.controlChange(7, (int) ((volume + 80.0f) / 86.0f * 127));
                 }
             }
         }
-        trackDuration=midiSequencer.getMicrosecondLength()/1000;
+        trackDuration=midiSequencer.getMicrosecondLength() / 1000;
         track.setDuration(trackDuration);
         midiSequencer.start();
         playbackState=PlaybackState.PLAYING;
@@ -192,14 +171,14 @@ public class AudioPlayerEngine implements AutoCloseable {
         return true;
     }
     private void startPositionUpdater(){
-        if (positionUpdater!=null&&positionUpdater.isAlive()){
+        if (positionUpdater != null && positionUpdater.isAlive()){
             positionUpdater.interrupt();
         }
-        positionUpdater=new Thread(()->{
-            while (running&&playbackState==PlaybackState.PLAYING){
+        positionUpdater=new Thread(() ->{
+            while (running && playbackState == PlaybackState.PLAYING){
                 try{
                     Thread.sleep(100);
-                    if (currentTrack!=null){
+                    if (currentTrack != null){
                         long position=getCurrentPosition();
                         currentTrack.setCurrentPosition(position);
                     }
@@ -212,13 +191,13 @@ public class AudioPlayerEngine implements AutoCloseable {
         positionUpdater.start();
     }
     public boolean pause(){
-        if (playbackState!=PlaybackState.PLAYING||currentTrack==null){
+        if (playbackState != PlaybackState.PLAYING || currentTrack == null){
             return false;
         }
         try{
             switch (currentTrack.getFileExtension()){
                 case "mp3":
-                    if (mp3Process!=null&&mp3Process.isAlive()){
+                    if (mp3Process != null && mp3Process.isAlive()){
                         mp3Process.destroy();
                         playbackState=PlaybackState.PAUSED;
                         currentTrack.setPlaying(false);
@@ -226,18 +205,17 @@ public class AudioPlayerEngine implements AutoCloseable {
                     }
                     break;
                 case "wav":
-                    if (audioClip!=null&&audioClip.isRunning()){
-                        pausePosition=audioClip.getMicrosecondPosition()/1000;
+                    if (audioClip != null && audioClip.isRunning()){
+                        pausePosition=audioClip.getMicrosecondPosition() / 1000;
                         audioClip.stop();
                         playbackState=PlaybackState.PAUSED;
                         currentTrack.setPlaying(false);
                         currentTrack.setCurrentPosition(pausePosition);
                     }
                     break;
-                case "mid":
-                case "midi":
-                    if (midiSequencer!=null&&midiSequencer.isRunning()){
-                        pausePosition=midiSequencer.getMicrosecondPosition()/1000;
+                case "mid", "midi":
+                    if (midiSequencer != null && midiSequencer.isRunning()){
+                        pausePosition=midiSequencer.getMicrosecondPosition() / 1000;
                         midiSequencer.stop();
                         playbackState=PlaybackState.PAUSED;
                         currentTrack.setPlaying(false);
@@ -248,12 +226,11 @@ public class AudioPlayerEngine implements AutoCloseable {
             return true;
         }
         catch (Exception e){
-            System.err.println("Error pausing playback: "+e.getMessage());
-            return false;
+            throw new RuntimeException("Error pausing playback: " + e.getMessage(), e);
         }
     }
     public boolean resume(){
-        if (playbackState!=PlaybackState.PAUSED||currentTrack==null){
+        if (playbackState != PlaybackState.PAUSED || currentTrack == null){
             return false;
         }
         try{
@@ -262,18 +239,17 @@ public class AudioPlayerEngine implements AutoCloseable {
                     currentTrack.setCurrentPosition(pausePosition);
                     return play(currentTrack);
                 case "wav":
-                    if (audioClip!=null){
-                        audioClip.setMicrosecondPosition(pausePosition*1000);
+                    if (audioClip != null){
+                        audioClip.setMicrosecondPosition(pausePosition * 1000);
                         audioClip.start();
                         playbackState=PlaybackState.PLAYING;
                         currentTrack.setPlaying(true);
                         return true;
                     }
                     break;
-                case "mid":
-                case "midi":
-                    if (midiSequencer!=null){
-                        midiSequencer.setMicrosecondPosition(pausePosition*1000);
+                case "mid", "midi":
+                    if (midiSequencer != null){
+                        midiSequencer.setMicrosecondPosition(pausePosition * 1000);
                         midiSequencer.start();
                         playbackState=PlaybackState.PLAYING;
                         currentTrack.setPlaying(true);
@@ -284,56 +260,52 @@ public class AudioPlayerEngine implements AutoCloseable {
             return false;
         }
         catch (Exception e){
-            System.err.println("Error resuming playback: "+e.getMessage());
-            return false;
+            throw new RuntimeException("Error resuming playback: " + e.getMessage(), e);
         }
     }
     public boolean stop(){
-        if (playbackState==PlaybackState.STOPPED){
+        if (playbackState == PlaybackState.STOPPED){
             return true;
         }
         try{
-            switch (currentTrack!=null?currentTrack.getFileExtension():""){
-                case "mp3":
-                    cleanupMp3();
-                    break;
-                case "wav":
-                    cleanupClip();
-                    break;
-                case "mid":
-                case "midi":
-                    cleanupMidi();
-                    break;
-            }
-            playbackState=PlaybackState.STOPPED;
-            if (currentTrack!=null){
+            if (currentTrack != null){
+                switch (currentTrack.getFileExtension()){
+                    case "mp3":
+                        cleanupMp3();
+                        break;
+                    case "wav":
+                        cleanupClip();
+                        break;
+                    case "mid", "midi":
+                        cleanupMidi();
+                        break;
+                }
                 currentTrack.setPlaying(false);
                 currentTrack.setCurrentPosition(0);
             }
+            playbackState=PlaybackState.STOPPED;
             pausePosition=0;
-            if (positionUpdater!=null){
+            if (positionUpdater != null){
                 positionUpdater.interrupt();
             }
             return true;
         }
         catch (Exception e){
-            System.err.println("Error stopping playback: "+e.getMessage());
-            return false;
+            throw new RuntimeException("Error stopping playback: " + e.getMessage(), e);
         }
     }
     public boolean seek(long positionMillis){
-        if (currentTrack==null||positionMillis<0){
+        if (currentTrack == null || positionMillis < 0){
             return false;
         }
         try{
             switch (currentTrack.getFileExtension()){
                 case "mp3":
-                    System.err.println("Seek not supported for MP3 in basic implementation");
                     return false;
                 case "wav":
-                    if (audioClip!=null){
-                        long microPosition=Math.min(positionMillis*1000, audioClip.getMicrosecondLength());
-                        if (playbackState==PlaybackState.PLAYING){
+                    if (audioClip != null){
+                        long microPosition=Math.min(positionMillis * 1000, audioClip.getMicrosecondLength());
+                        if (playbackState == PlaybackState.PLAYING){
                             audioClip.stop();
                             audioClip.setMicrosecondPosition(microPosition);
                             audioClip.start();
@@ -345,11 +317,10 @@ public class AudioPlayerEngine implements AutoCloseable {
                         return true;
                     }
                     break;
-                case "mid":
-                case "midi":
-                    if (midiSequencer!=null){
-                        long microPosition=Math.min(positionMillis*1000, midiSequencer.getMicrosecondLength());
-                        if (playbackState==PlaybackState.PLAYING){
+                case "mid", "midi":
+                    if (midiSequencer != null){
+                        long microPosition=Math.min(positionMillis * 1000, midiSequencer.getMicrosecondLength());
+                        if (playbackState == PlaybackState.PLAYING){
                             midiSequencer.stop();
                             midiSequencer.setMicrosecondPosition(microPosition);
                             midiSequencer.start();
@@ -365,8 +336,7 @@ public class AudioPlayerEngine implements AutoCloseable {
             return false;
         }
         catch (Exception e){
-            System.err.println("Error seeking: "+e.getMessage());
-            return false;
+            throw new RuntimeException("Error seeking: " + e.getMessage(), e);
         }
     }
     public boolean setVolume(float newVolume){
@@ -375,33 +345,31 @@ public class AudioPlayerEngine implements AutoCloseable {
             if (muted){
                 return true;
             }
-            switch (currentTrack!=null?currentTrack.getFileExtension():""){
-                case "mp3":
-                    break;
-                case "wav":
-                    if (audioClip!=null&&audioClip.isControlSupported(FloatControl.Type.MASTER_GAIN)){
-                        FloatControl gainControl=(FloatControl) audioClip.getControl(FloatControl.Type.MASTER_GAIN);
-                        gainControl.setValue(volume);
-                    }
-                    break;
-                case "mid":
-                case "midi":
-                    if (midiSequencer!=null&&midiSequencer instanceof javax.sound.midi.Synthesizer){
-                        javax.sound.midi.Synthesizer synthesizer=(javax.sound.midi.Synthesizer) midiSequencer;
-                        javax.sound.midi.MidiChannel[] channels=synthesizer.getChannels();
-                        for (javax.sound.midi.MidiChannel channel:channels){
-                            if (channel!=null){
-                                channel.controlChange(7, (int) ((volume+80.0f)/86.0f*127));
+            if (currentTrack != null){
+                switch (currentTrack.getFileExtension()){
+                    case "wav":
+                        if (audioClip != null && audioClip.isControlSupported(FloatControl.Type.MASTER_GAIN)){
+                            FloatControl gainControl=(FloatControl) audioClip.getControl(FloatControl.Type.MASTER_GAIN);
+                            gainControl.setValue(volume);
+                        }
+                        break;
+                    case "mid", "midi":
+                        if (midiSequencer instanceof Synthesizer){
+                            Synthesizer synthesizer=(Synthesizer) midiSequencer;
+                            MidiChannel[] channels=synthesizer.getChannels();
+                            for (MidiChannel channel : channels){
+                                if (channel != null){
+                                    channel.controlChange(7, (int) ((volume + 80.0f) / 86.0f * 127));
+                                }
                             }
                         }
-                    }
-                    break;
+                        break;
+                }
             }
             return true;
         }
         catch (Exception e){
-            System.err.println("Error setting volume: "+e.getMessage());
-            return false;
+            throw new RuntimeException("Error setting volume: " + e.getMessage(), e);
         }
     }
     public float getVolume(){
@@ -418,8 +386,7 @@ public class AudioPlayerEngine implements AutoCloseable {
             }
         }
         catch (Exception e){
-            System.err.println("Error setting mute: "+e.getMessage());
-            return false;
+            throw new RuntimeException("Error setting mute: " + e.getMessage(), e);
         }
     }
     public boolean isMuted(){
@@ -432,70 +399,59 @@ public class AudioPlayerEngine implements AutoCloseable {
         return playbackState;
     }
     public long getCurrentPosition(){
-        if (currentTrack==null){
+        if (currentTrack == null){
             return 0;
         }
         try{
-            switch (currentTrack.getFileExtension()){
-                case "mp3":
-                    return currentTrack.getCurrentPosition();
-                case "wav":
-                    if (audioClip!=null){
-                        return audioClip.getMicrosecondPosition()/1000;
-                    }
-                    break;
-                case "mid":
-                case "midi":
-                    if (midiSequencer!=null){
-                        return midiSequencer.getMicrosecondPosition()/1000;
-                    }
-                    break;
-            }
-            return 0;
+            return switch (currentTrack.getFileExtension()){
+                case "mp3" -> currentTrack.getCurrentPosition();
+                case "wav" -> audioClip != null ? audioClip.getMicrosecondPosition() / 1000 : 0;
+                case "mid", "midi" -> midiSequencer != null ? midiSequencer.getMicrosecondPosition() / 1000 : 0;
+                default -> 0;
+            };
         }
         catch (Exception e){
-            System.err.println("Error getting position: "+e.getMessage());
-            return 0;
+            throw new RuntimeException("Error getting position: " + e.getMessage(), e);
         }
     }
     public long getDuration(){
-        if (currentTrack==null){
+        if (currentTrack == null){
             return 0;
         }
         return trackDuration;
     }
     public double getPlaybackProgress(){
         long duration=getDuration();
-        if (duration<=0){
+        if (duration <= 0){
             return 0.0;
         }
         long position=getCurrentPosition();
-        return (double) position/duration;
+        return (double) position / duration;
     }
     public boolean isPlaying(){
-        return playbackState==PlaybackState.PLAYING;
+        return playbackState == PlaybackState.PLAYING;
     }
     public boolean isPaused(){
-        return playbackState==PlaybackState.PAUSED;
+        return playbackState == PlaybackState.PAUSED;
     }
     public boolean isStopped(){
-        return playbackState==PlaybackState.STOPPED;
+        return playbackState == PlaybackState.STOPPED;
     }
     private void cleanupMp3(){
-        if (mp3Process!=null){
+        if (mp3Process != null){
             mp3Process.destroy();
             mp3Process=null;
         }
     }
     private void cleanupClip(){
-        if (audioClip!=null){
+        if (audioClip != null){
             audioClip.stop();
             audioClip.close();
             audioClip=null;
         }
     }
     private void cleanupMidi(){
-        if (midiSequencer!=null){
+        if (midiSequencer != null){
             midiSequencer.stop();
             midiSequencer.close();
             midiSequencer=null;
@@ -507,13 +463,12 @@ public class AudioPlayerEngine implements AutoCloseable {
         cleanupMp3();
         cleanupClip();
         cleanupMidi();
-        if (positionUpdater!=null){
+        if (positionUpdater != null){
             positionUpdater.interrupt();
-            positionUpdater=null;
         }
     }
     @Override
-    public void close() {
+    public void close(){
         cleanup();
     }
 }
