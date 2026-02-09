@@ -30,14 +30,22 @@ public abstract class BaseAIClient implements AIClient {
     protected static final DateTimeFormatter TIME_FORMATTER = new DateTimeFormatterBuilder().appendPattern("HH:mm").optionalStart().appendPattern(":ss").optionalEnd().toFormatter();
 
     protected BaseAIClient() {
-        this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).version(HttpClient.Version.HTTP_2).build();
+        this.httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(30))
+            .version(HttpClient.Version.HTTP_2)
+            .build();
         this.lastUsageStats = new UsageStats();
         this.totalUsageStats = new UsageStats();
     }
 
     @Override
     public abstract List<Event> generateEvents(String goalDescription, LocalDate startDate, int days, List<Event> existingEvents) throws AIException;
-
+    @Override
+    public List<Event> generateEvents(String goalDescription, LocalDate startDate, int days, List<Event> existingEvents, ProgressCallback callback) throws AIException {
+        // Default implementation: call the version without callback
+        // Subclasses should override this to use the callback
+        return generateEvents(goalDescription, startDate, days, existingEvents);
+    }
     @Override
     public boolean testConnection() throws AIException {
         ensureConfigured();
@@ -77,40 +85,20 @@ public abstract class BaseAIClient implements AIClient {
     public void resetUsageStats() { lastUsageStats.reset(); }
 
     protected String sendRequest(String requestBody) throws AIException {
-        ensureConfigured();
-        int maxRetries = 3;
-        int retryDelayMs = 1000;
-
-        for (int attempt = 1; attempt <= maxRetries; attempt++) {
-            try {
-                HttpRequest request = buildHttpRequest(requestBody);
-                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-                int status = response.statusCode();
-
-                if (status == 200) return response.body();
-                if (status == 429) {
-                    if (attempt < maxRetries) { Thread.sleep(retryDelayMs * attempt); continue; }
-                    throw new AIException("Rate limit exceeded", AIException.ErrorType.RATE_LIMIT_ERROR);
-                }
-                if (status == 401) throw new AIException("Invalid API key", AIException.ErrorType.AUTHENTICATION_ERROR);
-                if (status >= 500) {
-                    if (attempt < maxRetries) { Thread.sleep(retryDelayMs * attempt); continue; }
-                    throw new AIException("Server error: " + status, AIException.ErrorType.SERVER_ERROR);
-                }
-                throw new AIException("API error " + status + ": " + response.body(), AIException.ErrorType.OTHER);
-
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-                throw new AIException("Request interrupted", AIException.ErrorType.OTHER, ie);
-            } catch (Exception e) {
-                if (attempt == maxRetries) throw new AIException("Request failed after " + maxRetries + " attempts", AIException.ErrorType.NETWORK_ERROR, e);
-                try { Thread.sleep(retryDelayMs * attempt); } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw new AIException("Retry interrupted", AIException.ErrorType.OTHER, ie);
-                }
+        try {
+            HttpRequest request = buildHttpRequest(requestBody);
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            
+            if (response.statusCode() != 200) {
+                throw new AIException("API request failed with status " + response.statusCode() + ": " + response.body(),
+                                     AIException.ErrorType.OTHER);
             }
+            
+            return response.body();
+        } catch (Exception e) {
+            throw new AIException("Failed to send request: " + e.getMessage(),
+                                 AIException.ErrorType.NETWORK_ERROR, e);
         }
-        throw new AIException("Request failed", AIException.ErrorType.NETWORK_ERROR);
     }
 
     protected abstract HttpRequest buildHttpRequest(String requestBody);

@@ -31,6 +31,7 @@ import java.util.List;
  */
 public interface AIClient{
     List<Event> generateEvents(String goalDescription, LocalDate startDate, int days, List<Event> existingEvents) throws AIException;
+    List<Event> generateEvents(String goalDescription, LocalDate startDate, int days, List<Event> existingEvents, ProgressCallback callback) throws AIException;
     boolean testConnection() throws AIException;
     void setApiKey(String apiKey);
     void setEndpoint(String endpoint);

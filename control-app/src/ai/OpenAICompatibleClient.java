@@ -56,10 +56,12 @@ public class OpenAICompatibleClient extends BaseAIClient{
     public double getCostPerThousandTokens(){
         return 0.0;
     }
+    
     @Override
     public int getMaxTokensPerRequest(){
         return 4000;
     }
+    
     @Override
     public List<String> getSupportedModels(){
         if (!modelsFetched&&apiKey!=null&&!apiKey.isEmpty()){
@@ -73,6 +75,72 @@ public class OpenAICompatibleClient extends BaseAIClient{
         }
         return new ArrayList<>(supportedModels);
     }
+    
+    @Override
+    public List<Event> generateEvents(String goalDescription, LocalDate startDate, int days, List<Event> existingEvents) throws AIException {
+        return generateEvents(goalDescription, startDate, days, existingEvents, null);
+    }
+    
+    @Override
+    public List<Event> generateEvents(String goalDescription, LocalDate startDate, int days, List<Event> existingEvents, ProgressCallback callback) throws AIException {
+        try {
+            // Log start of process
+            if (callback != null) {
+                callback.update("Starting AI event generation...");
+                callback.update("Goal: " + goalDescription);
+                callback.update("Start date: " + startDate + ", Days: " + days);
+            }
+            
+            // Check configuration first
+            if (callback != null) {
+                callback.update("Checking AI configuration...");
+            }
+            ensureConfigured();
+            
+            if (callback != null) {
+                callback.update("Configuration OK. Building request...");
+            }
+            String requestBody = buildEventGenerationRequest(goalDescription, startDate, days, existingEvents);
+            
+            if (callback != null) {
+                callback.update("Request built. Sending to AI API...");
+                callback.update("Endpoint: " + endpoint);
+                callback.update("Model: " + model);
+            }
+            String response = sendRequest(requestBody);
+            
+            updateUsageStats(estimateTokens(requestBody), estimateTokens(response));
+            
+            if (callback != null) {
+                callback.update("Response received. Parsing...");
+            }
+            List<Event> events = parseResponse(response, startDate, days, existingEvents);
+            
+            if (callback != null) {
+                callback.updateSuccess("Successfully parsed " + events.size() + " events");
+                for (Event event : events) {
+                    if (callback.isCancelled()) break;
+                    callback.updateEvent(event);
+                }
+            }
+            
+            return events;
+        } catch (AIException e) {
+            if (callback != null) {
+                callback.updateError("AI Error: " + e.getMessage());
+                callback.updateError("Error type: " + e.getErrorType());
+            }
+            throw e;
+        } catch (Exception e) {
+            if (callback != null) {
+                callback.updateError("Unexpected error: " + e.getMessage());
+                callback.updateError("Error class: " + e.getClass().getName());
+            }
+            throw new AIException("Failed to generate events: " + e.getMessage(), 
+                                 AIException.ErrorType.OTHER, e);
+        }
+    }
+    
     private List<String> fetchModelsViaAPI() throws AIException{
         try{
             String modelsEndpoint=constructModelsEndpoint();
@@ -122,21 +190,6 @@ public class OpenAICompatibleClient extends BaseAIClient{
     public void refreshModels() throws AIException{
         supportedModels=fetchModelsViaAPI();
         modelsFetched=true;
-    }
-    @Override
-    public List<Event> generateEvents(String goalDescription, LocalDate startDate, int days, List<Event> existingEvents) throws AIException{
-        try{
-            String requestBody=buildEventGenerationRequest(goalDescription, startDate, days, existingEvents);
-            String response=sendRequest(requestBody);
-            updateUsageStats(estimateTokens(requestBody), estimateTokens(response));
-            return parseResponse(response, startDate, days, existingEvents);
-        }
-        catch (AIException e){
-            throw e;
-        }
-        catch (Exception e){
-            throw new AIException("Failed to generate events: "+e.getMessage(),AIException.ErrorType.OTHER, e);
-        }
     }
     @Override
     protected HttpRequest buildHttpRequest(String requestBody){

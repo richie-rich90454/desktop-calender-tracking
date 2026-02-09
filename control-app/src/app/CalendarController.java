@@ -404,15 +404,19 @@ public class CalendarController {
         AIConfigDialog dialog=new AIConfigDialog(parentFrame);
         dialog.setVisible(true);
         if (dialog.isConfigured()){
-            generateEventsWithAI(dialog.getAIClient(), dialog.getGoalDescription(), dialog.getDaysToGenerate(), dialog.shouldAvoidConflicts());
+            generateEventsWithAI(dialog.getAIClient(), dialog.getGoalDescription(), dialog.getDaysToGenerate(), dialog.shouldAvoidConflicts(), parentFrame);
         }
     }
     public void generateEventsWithAI(AIClient aiClient, String goalDescription, int days, boolean avoidConflicts){
+        generateEventsWithAI(aiClient, goalDescription, days, avoidConflicts, null);
+    }
+    
+    public void generateEventsWithAI(AIClient aiClient, String goalDescription, int days, boolean avoidConflicts, Frame parentFrame){
         if (aiClient==null){
-            JOptionPane.showMessageDialog(null, "AI client not configured", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(parentFrame, "AI client not configured", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
-        AIProgressDialog progressDialog=new AIProgressDialog((Frame) SwingUtilities.getWindowAncestor((Component) null));
+        AIProgressDialog progressDialog=new AIProgressDialog(parentFrame);
         progressDialog.showDialog();
         SwingWorker<List<Event>, Void> worker=new SwingWorker<>(){
             private String errorMessage;
@@ -427,7 +431,7 @@ public class CalendarController {
                     progressDialog.update("Sending request for: " + goalDescription);
                     if (progressDialog.isCancelled()) return new ArrayList<>();
                     
-                    List<Event> events = aiClient.generateEvents(goalDescription, startDate, days, existingEvents);
+                    List<Event> events = aiClient.generateEvents(goalDescription, startDate, days, existingEvents, progressDialog);
                     
                     progressDialog.updateSuccess("Generated " + events.size() + " events");
                     for (Event event : events) {

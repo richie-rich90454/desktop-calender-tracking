@@ -101,6 +101,7 @@ public class AIProgressDialog extends JDialog implements ProgressCallback {
         return cancelled;
     }
     public void showDialog(){
+        appendLine("AI Progress Dialog initialized...");
         setVisible(true);
     }
     public void closeDialog(){
