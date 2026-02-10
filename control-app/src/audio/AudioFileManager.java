@@ -16,14 +16,17 @@ import java.util.stream.Collectors;
 /**
  * Manages audio file operations including upload, deletion, scanning, and
  * maintaining playlist order via numeric filename prefixes. Provides
- * centralized
- * file system operations for the audio player system with track numbering and
- * reordering capabilities.
+ * centralized file system operations for the audio player system with 
+ * automatic MP3-to-WAV conversion on upload.
  */
 public class AudioFileManager {
     private static final String AUDIO_DIR_NAME = "audio";
-    private static final Pattern TRACK_PATTERN = Pattern.compile("^(\\d{3})_(.*)$");
+    private static final Pattern TRACK_PATTERN = Pattern.compile("^(\\d{3})_(.*)\\.(wav|mid|midi|ogg|flac)$");
     private static final String PREFIX_FORMAT = "%03d";
+    
+    // Supported formats (WAV is native, others converted to WAV on upload)
+    private static final String[] SUPPORTED_INPUT_EXTENSIONS = {"mp3", "wav", "mid", "midi", "ogg", "flac"};
+    private static final String OUTPUT_EXTENSION = "wav"; // Always convert to WAV
 
     private final Path audioDirectory;
 
@@ -60,6 +63,11 @@ public class AudioFileManager {
         try {
             List<Path> files = Files.list(audioDirectory)
                     .filter(Files::isRegularFile)
+                    .filter(path -> {
+                        String fileName = path.getFileName().toString();
+                        Matcher matcher = TRACK_PATTERN.matcher(fileName);
+                        return matcher.matches();
+                    })
                     .collect(Collectors.toList());
 
             for (Path filePath : files) {
@@ -69,27 +77,27 @@ public class AudioFileManager {
                     try {
                         int trackNumber = Integer.parseInt(matcher.group(1));
                         String displayName = matcher.group(2);
+                        String extension = matcher.group(3);
+                        
+                        // All files are now WAV after conversion
                         AudioTrack track = new AudioTrack(filePath.toFile(), trackNumber, displayName, 0);
-                        if (track.isSupportedFormat()) {
-                            tracks.add(track);
-                        }
+                        tracks.add(track);
                     } catch (NumberFormatException ignored) {
-                        // Log or handle invalid number format if necessary
+                        // Skip invalid numbered files
                     }
                 }
             }
             tracks.sort(Comparator.comparingInt(AudioTrack::getTrackNumber));
-        } catch (IOException e) { // Catch IOException explicitly
-             // Log the error if needed
-             System.err.println("Error scanning audio files: " + e.getMessage());
-         }
+        } catch (IOException e) {
+            System.err.println("Error scanning audio files: " + e.getMessage());
+        }
         return tracks;
     }
 
     public int getNextTrackNumber() {
         List<AudioTrack> tracks = scanAudioFiles();
         if (tracks.isEmpty()) {
-            return 1; // Start numbering from 1 instead of 0 for consistency
+            return 1;
         }
         return tracks.stream().mapToInt(AudioTrack::getTrackNumber).max().orElse(0) + 1;
     }
@@ -101,23 +109,125 @@ public class AudioFileManager {
 
         String originalName = sourceFile.getName();
         String extension = getFileExtension(originalName);
+        
+        // Check if format is supported
         if (!isSupportedAudioExtension(extension)) {
             throw new IOException("Unsupported audio format: " + extension);
         }
 
-        int trackNumber = getNextTrackNumber(); // Use the fixed method
-        String prefixedName = String.format(PREFIX_FORMAT + "_%s", trackNumber, originalName);
+        int trackNumber = getNextTrackNumber();
+        String baseName = removeExtension(originalName);
+        String prefixedName = String.format(PREFIX_FORMAT + "_%s." + OUTPUT_EXTENSION, trackNumber, baseName);
         Path destinationPath = audioDirectory.resolve(prefixedName);
 
-        Files.copy(sourceFile.toPath(), destinationPath, StandardCopyOption.REPLACE_EXISTING);
+        // Convert MP3 to WAV if needed, otherwise copy directly
+        if ("mp3".equalsIgnoreCase(extension) || 
+            "ogg".equalsIgnoreCase(extension) || 
+            "flac".equalsIgnoreCase(extension)) {
+            convertToWav(sourceFile, destinationPath);
+        } else if ("mid".equalsIgnoreCase(extension) || "midi".equalsIgnoreCase(extension)) {
+            // MIDI files can be kept as-is since Java supports them natively
+            Files.copy(sourceFile.toPath(), destinationPath, StandardCopyOption.REPLACE_EXISTING);
+        } else {
+            // WAV files can be copied directly
+            Files.copy(sourceFile.toPath(), destinationPath, StandardCopyOption.REPLACE_EXISTING);
+        }
+
         return new AudioTrack(destinationPath.toFile(), trackNumber);
+    }
+
+    /**
+     * Convert an audio file to WAV format using FFmpeg.
+     * This provides lossless conversion for MP3, OGG, FLAC files.
+     */
+    private void convertToWav(File sourceFile, Path destinationPath) throws IOException {
+        // Check if FFmpeg is available
+        if (!isFfmpegAvailable()) {
+            throw new IOException("FFmpeg is required for audio conversion but not found in system PATH");
+        }
+
+        // Build FFmpeg command
+        ProcessBuilder processBuilder = new ProcessBuilder(
+            "ffmpeg",
+            "-i", sourceFile.getAbsolutePath(),      // Input file
+            "-acodec", "pcm_s16le",                  // 16-bit PCM (standard WAV)
+            "-ar", "44100",                          // Sample rate: 44.1kHz
+            "-ac", "2",                              // Stereo
+            "-y",                                    // Overwrite output file
+            destinationPath.toAbsolutePath().toString()
+        );
+
+        processBuilder.redirectErrorStream(true);
+        
+        try {
+            Process process = processBuilder.start();
+            int exitCode = process.waitFor();
+            
+            if (exitCode != 0) {
+                // Read error output
+                String errorOutput = new String(process.getInputStream().readAllBytes());
+                throw new IOException("FFmpeg conversion failed (exit code " + exitCode + "): " + errorOutput);
+            }
+            
+            // Verify the output file was created
+            if (!Files.exists(destinationPath) || Files.size(destinationPath) == 0) {
+                throw new IOException("Conversion completed but output file was not created");
+            }
+            
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Conversion interrupted", e);
+        }
+    }
+
+    /**
+     * Check if FFmpeg is available on the system.
+     */
+    private boolean isFfmpegAvailable() {
+        try {
+            Process process = new ProcessBuilder("ffmpeg", "-version").start();
+            int exitCode = process.waitFor();
+            return exitCode == 0;
+        } catch (IOException | InterruptedException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Get FFmpeg installation instructions for the user.
+     */
+    public String getFfmpegInstallInstructions() {
+        String os = System.getProperty("os.name").toLowerCase();
+        
+        if (os.contains("win")) {
+            return "Please install FFmpeg from: https://ffmpeg.org/download.html\n" +
+                   "Or using Chocolatey: choco install ffmpeg";
+        } else if (os.contains("mac")) {
+            return "Install FFmpeg using Homebrew: brew install ffmpeg";
+        } else if (os.contains("nix") || os.contains("nux")) {
+            return "Install FFmpeg using your package manager:\n" +
+                   "Ubuntu/Debian: sudo apt-get install ffmpeg\n" +
+                   "Fedora: sudo dnf install ffmpeg\n" +
+                   "Arch: sudo pacman -S ffmpeg";
+        } else {
+            return "Please install FFmpeg from: https://ffmpeg.org/download.html";
+        }
+    }
+
+    /**
+     * Simple method for systems without FFmpeg (fallback - copies file as-is)
+     */
+    private void copyWithoutConversion(File sourceFile, Path destinationPath) throws IOException {
+        System.err.println("Warning: FFmpeg not available, copying file without conversion");
+        System.err.println("Audio playback may not work properly for MP3 files");
+        Files.copy(sourceFile.toPath(), destinationPath, StandardCopyOption.REPLACE_EXISTING);
     }
 
     public boolean deleteAudioTrack(AudioTrack track) {
         try {
             File audioFile = track.getAudioFile();
             if (audioFile.exists() && audioFile.delete()) {
-                renumberTracksAfterDeletion(track.getTrackNumber()); // Renumber correctly
+                renumberTracksAfterDeletion(track.getTrackNumber());
                 return true;
             }
             return false;
@@ -128,14 +238,35 @@ public class AudioFileManager {
 
     public void reorderTracks(List<AudioTrack> newOrder) {
         try {
+            // First, move all files to temporary names
+            List<Path> tempPaths = new ArrayList<>();
+            for (AudioTrack track : newOrder) {
+                String tempName = "temp_" + System.currentTimeMillis() + "_" + track.getAudioFile().getName();
+                Path tempPath = audioDirectory.resolve(tempName);
+                Files.move(track.getAudioFile().toPath(), tempPath, StandardCopyOption.REPLACE_EXISTING);
+                tempPaths.add(tempPath);
+            }
+            
+            // Then rename to final names with correct numbering
             for (int i = 0; i < newOrder.size(); i++) {
                 AudioTrack track = newOrder.get(i);
-                int newNumber = i + 1; // Assuming 1-based indexing like getNextTrackNumber
-                if (track.getTrackNumber() != newNumber) {
-                    renameTrackFile(track, newNumber);
+                Path tempPath = tempPaths.get(i);
+                
+                String currentName = track.getAudioFile().getName();
+                String baseName = removeExtension(currentName);
+                if (baseName.contains("_")) {
+                    baseName = baseName.substring(baseName.indexOf("_") + 1);
                 }
+                
+                int newNumber = i + 1;
+                String newName = String.format(PREFIX_FORMAT + "_%s." + OUTPUT_EXTENSION, newNumber, baseName);
+                Path newPath = audioDirectory.resolve(newName);
+                
+                Files.move(tempPath, newPath, StandardCopyOption.REPLACE_EXISTING);
+                track.setTrackNumber(newNumber);
+                track.setAudioFile(newPath.toFile());
             }
-        } catch (Exception e) {
+        } catch (IOException e) {
             throw new RuntimeException("Error reordering tracks: " + e.getMessage(), e);
         }
     }
@@ -143,13 +274,14 @@ public class AudioFileManager {
     private void renameTrackFile(AudioTrack track, int newNumber) throws IOException {
         File currentFile = track.getAudioFile();
         String currentName = currentFile.getName();
-        Matcher matcher = TRACK_PATTERN.matcher(currentName);
-        if (!matcher.matches()) {
-            throw new IOException("Invalid track filename format: " + currentName);
+        
+        // Extract base name (remove number prefix and extension)
+        String baseName = removeExtension(currentName);
+        if (baseName.contains("_")) {
+            baseName = baseName.substring(baseName.indexOf("_") + 1);
         }
-
-        String displayName = matcher.group(2);
-        String newName = String.format(PREFIX_FORMAT + "_%s", newNumber, displayName);
+        
+        String newName = String.format(PREFIX_FORMAT + "_%s." + OUTPUT_EXTENSION, newNumber, baseName);
         Path newPath = audioDirectory.resolve(newName);
 
         Files.move(currentFile.toPath(), newPath, StandardCopyOption.REPLACE_EXISTING);
@@ -159,18 +291,16 @@ public class AudioFileManager {
 
     private void renumberTracksAfterDeletion(int deletedNumber) {
         try {
-            List<AudioTrack> tracks = scanAudioFiles(); // Rescan to get current state
-            // Filter tracks that come after the deleted number and sort them
+            List<AudioTrack> tracks = scanAudioFiles();
             List<AudioTrack> tracksToRenumber = tracks.stream()
                     .filter(track -> track.getTrackNumber() > deletedNumber)
                     .sorted(Comparator.comparingInt(AudioTrack::getTrackNumber))
                     .collect(Collectors.toList());
 
-            // Renumber them sequentially starting from the deleted number's position
             for (int i = 0; i < tracksToRenumber.size(); i++) {
                 AudioTrack track = tracksToRenumber.get(i);
-                int newNumber = deletedNumber + i; // Correctly shift down
-                if (newNumber != track.getTrackNumber()) { // Only rename if number actually changes
+                int newNumber = deletedNumber + i;
+                if (newNumber != track.getTrackNumber()) {
                     renameTrackFile(track, newNumber);
                 }
             }
@@ -178,7 +308,6 @@ public class AudioFileManager {
             throw new RuntimeException("Error renumbering tracks after deletion: " + e.getMessage(), e);
         }
     }
-
 
     public boolean clearAllAudioFiles() {
         try {
@@ -224,20 +353,34 @@ public class AudioFileManager {
         return "";
     }
 
+    private String removeExtension(String fileName) {
+        int dotIndex = fileName.lastIndexOf('.');
+        if (dotIndex > 0) {
+            return fileName.substring(0, dotIndex);
+        }
+        return fileName;
+    }
+
     private boolean isSupportedAudioExtension(String extension) {
         if (extension == null || extension.isEmpty()) {
             return false;
         }
-        return switch (extension.toLowerCase()) {
-            case "mp3", "wav", "mid", "midi", "ogg", "flac" -> true;
-            default -> false;
-        };
+        for (String supported : SUPPORTED_INPUT_EXTENSIONS) {
+            if (supported.equalsIgnoreCase(extension)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public String getDirectoryInfo() {
         StringBuilder info = new StringBuilder();
         info.append("Audio Directory: ").append(audioDirectory).append("\n");
         info.append("Exists: ").append(Files.exists(audioDirectory)).append("\n");
+        info.append("FFmpeg Available: ").append(isFfmpegAvailable()).append("\n");
+        if (!isFfmpegAvailable()) {
+            info.append("\n").append(getFfmpegInstallInstructions()).append("\n");
+        }
         if (Files.exists(audioDirectory)) {
             try {
                 long fileCount = Files.list(audioDirectory).filter(Files::isRegularFile).count();
