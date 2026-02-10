@@ -30,6 +30,10 @@ import java.util.Locale;
  */
 
 public class AppLauncher{
+    static{
+        System.setProperty("file.encoding", "UTF-8");
+        System.setProperty("sun.jnu.encoding", "UTF-8");
+    }
     public void launch(){
         Locale.setDefault(Locale.ENGLISH);
         AppState appState=new AppState();

@@ -92,14 +92,27 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener {
     private void setupLookAndFeel(){
         try{
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-            Font defaultFont=new Font("Segoe UI", Font.PLAIN, 13);
-            if (!"Segoe UI".equals(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames()[0])){
-                defaultFont=new Font("SansSerif", Font.PLAIN, 13);
+            String[] fontPreference={"Dialog", "SansSerif", "Arial Unicode MS", "DejaVu Sans", "Noto Sans"};
+            Font defaultFont=null;
+            for(String fontName : fontPreference){
+                if(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames(java.util.Locale.ENGLISH).length>0){
+                    defaultFont=new Font(fontName, Font.PLAIN, 13);
+                    break;
+                }
+            }
+            if(defaultFont==null){
+                defaultFont=new Font(Font.SANS_SERIF, Font.PLAIN, 13);
             }
             UIManager.put("Button.font", defaultFont);
             UIManager.put("Label.font", defaultFont);
             UIManager.put("TextField.font", defaultFont);
+            UIManager.put("TextArea.font", defaultFont);
             UIManager.put("List.font", defaultFont);
+            UIManager.put("ComboBox.font", defaultFont);
+            UIManager.put("Menu.font", defaultFont);
+            UIManager.put("MenuItem.font", defaultFont);
+            UIManager.put("CheckBox.font", defaultFont);
+            UIManager.put("RadioButton.font", defaultFont);
             UIManager.put("Panel.background", NEUTRAL_BG);
         }
         catch (Exception e){
