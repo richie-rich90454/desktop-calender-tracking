@@ -106,7 +106,7 @@ public class EventEditor {
                 public void mouseEntered(MouseEvent e){
                     Object mode=button.getClientProperty("viewMode");
                     if (mode instanceof AppState.ViewMode){
-                        AppState.ViewMode buttonMode=(AppState.ViewMode) mode;
+                        // AppState.ViewMode buttonMode=(AppState.ViewMode) mode;
                         Color currentBg=button.getBackground();
                         if (currentBg.equals(primary)){
                             button.setBackground(primary.darker());
@@ -122,7 +122,7 @@ public class EventEditor {
                 public void mouseExited(MouseEvent e){
                     Object mode=button.getClientProperty("viewMode");
                     if (mode instanceof AppState.ViewMode){
-                        AppState.ViewMode buttonMode=(AppState.ViewMode) mode;
+                        // AppState.ViewMode buttonMode=(AppState.ViewMode) mode;
                         Color currentBg=button.getBackground();
                         if (currentBg.equals(primary.darker())||currentBg.equals(primary)){
                             button.setBackground(primary);
