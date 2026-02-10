@@ -1,5 +1,4 @@
 package ui;
-
 import app.CalendarController;
 import model.Event;
 import state.AppState;
@@ -18,17 +17,17 @@ import java.util.Locale;
 /**
  * Main application window.
  */
-
 public class CalendarFrame extends JFrame implements PropertyChangeListener{
-    private static final String APP_NAME="CalendarApp";
-    private static final Color PRIMARY_BLUE=new Color(66, 133, 244);
-    private static final Color PRIMARY_GREEN=new Color(30, 120, 83);
-    private static final Color PRIMARY_RED=new Color(220, 53, 69);
-    private static final Color NEUTRAL_BG=new Color(255, 255, 255);
-    private static final Color NEUTRAL_LIGHT=new Color(248, 249, 250);
-    private static final Color NEUTRAL_MID=new Color(233, 236, 239);
-    private static final Color TEXT_PRIMARY=new Color(33, 37, 41);
-    private static final Color TEXT_SECONDARY=new Color(108, 117, 125);
+    private static final String APP_NAME = "CalendarApp";
+    private static final Color PRIMARY_BLUE = new Color(66, 133, 244);
+    private static final Color PRIMARY_GREEN = new Color(30, 120, 83);
+    private static final Color PRIMARY_RED = new Color(220, 53, 69);
+    private static final Color NEUTRAL_BG = new Color(255, 255, 255);
+    private static final Color NEUTRAL_LIGHT = new Color(248, 249, 250);
+    private static final Color NEUTRAL_MID = new Color(233, 236, 239);
+    private static final Color TEXT_PRIMARY = new Color(33, 37, 41);
+    private static final Color TEXT_SECONDARY = new Color(108, 117, 125);
+
     private CalendarController controller;
     private AppState appState;
     private JLabel monthYearLabel;
@@ -39,16 +38,22 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener{
     private JLabel eventCountLabel;
     private JButton addEventButton;
     private JPanel viewModePanel;
-    private DateTimeFormatter dateFormatter=DateTimeFormatter.ofPattern("EEEE, MMMM d", Locale.ENGLISH);
+    private DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("EEEE, MMMM d", Locale.ENGLISH);
     private LocalDate currentSelectedDate;
     private JScrollPane calendarScrollPane;
     private JLabel statusLabel;
     private JLabel unsavedLabel;
+
+    // Removed audioPlayerPanel member variable
+
+    // Added member variable to hold reference to the detached audio player window
+    private JFrame audioPlayerWindow;
+
     public CalendarFrame(CalendarController controller){
         Locale.setDefault(Locale.ENGLISH);
-        this.controller=controller;
-        this.appState=controller.getAppState();
-        this.currentSelectedDate=appState.getSelectedDate();
+        this.controller = controller;
+        this.appState = controller.getAppState();
+        this.currentSelectedDate = appState.getSelectedDate();
         initializeWindow();
         setupLookAndFeel();
         createComponents();
@@ -63,6 +68,7 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener{
             }
         });
     }
+
     private void initializeWindow(){
         setTitle(APP_NAME);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -71,23 +77,24 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener{
         setLocationRelativeTo(null);
         try{
             setIconImage(Toolkit.getDefaultToolkit().createImage(getClass().getResource("/icon.png")));
-        }
-        catch (Exception e){
+        } catch (Exception e){
+            // Icon loading failed, continue without icon
         }
     }
+
     private void setupLookAndFeel(){
         try{
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-            String[] fontPreference={"Dialog", "SansSerif", "Arial Unicode MS", "DejaVu Sans", "Noto Sans"};
-            Font defaultFont=null;
-            for (String fontName:fontPreference){
-                if (GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames(Locale.ENGLISH).length >0){
-                    defaultFont=new Font(fontName, Font.PLAIN, 13);
+            String[] fontPreference = {"Dialog", "SansSerif", "Arial Unicode MS", "DejaVu Sans", "Noto Sans"};
+            Font defaultFont = null;
+            for (String fontName : fontPreference){
+                if (GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames(Locale.ENGLISH).length > 0){
+                    defaultFont = new Font(fontName, Font.PLAIN, 13);
                     break;
                 }
             }
             if (defaultFont == null){
-                defaultFont=new Font(Font.SANS_SERIF, Font.PLAIN, 13);
+                defaultFont = new Font(Font.SANS_SERIF, Font.PLAIN, 13);
             }
             UIManager.put("Button.font", defaultFont);
             UIManager.put("Label.font", defaultFont);
@@ -100,76 +107,96 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener{
             UIManager.put("CheckBox.font", defaultFont);
             UIManager.put("RadioButton.font", defaultFont);
             UIManager.put("Panel.background", NEUTRAL_BG);
-        }
-        catch (Exception e){
+        } catch (Exception e){
             e.printStackTrace();
         }
     }
+
     private void createComponents(){
-        monthYearLabel=new JLabel("", SwingConstants.CENTER);
+        monthYearLabel = new JLabel("", SwingConstants.CENTER);
         monthYearLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
         monthYearLabel.setForeground(TEXT_PRIMARY);
-        JButton prevMonthBtn=UIComponentFactory.createTextButton("Previous", NEUTRAL_BG, NEUTRAL_LIGHT, NEUTRAL_MID, TEXT_PRIMARY);
-        JButton todayBtn=UIComponentFactory.createPrimaryButton("Today", PRIMARY_BLUE);
-        JButton nextMonthBtn=UIComponentFactory.createTextButton("Next", NEUTRAL_BG, NEUTRAL_LIGHT, NEUTRAL_MID, TEXT_PRIMARY);
-        viewModePanel=new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+
+        JButton prevMonthBtn = UIComponentFactory.createTextButton("Previous", NEUTRAL_BG, NEUTRAL_LIGHT, NEUTRAL_MID, TEXT_PRIMARY);
+        JButton todayBtn = UIComponentFactory.createPrimaryButton("Today", PRIMARY_BLUE);
+        JButton nextMonthBtn = UIComponentFactory.createTextButton("Next", NEUTRAL_BG, NEUTRAL_LIGHT, NEUTRAL_MID, TEXT_PRIMARY);
+
+        viewModePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         viewModePanel.setBackground(NEUTRAL_BG);
         addViewModeButtons();
-        calendarGrid=new JPanel();
+
+        calendarGrid = new JPanel();
         calendarGrid.setBackground(NEUTRAL_MID);
         calendarGrid.setBorder(new EmptyBorder(1, 1, 1, 1));
-        eventsListModel=new DefaultListModel<>();
-        eventsList=new JList<>(eventsListModel);
+
+        eventsListModel = new DefaultListModel<>();
+        eventsList = new JList<>(eventsListModel);
         eventsList.setCellRenderer(new EventListCellRenderer());
         eventsList.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         eventsList.setBackground(NEUTRAL_BG);
         eventsList.setSelectionBackground(PRIMARY_BLUE);
         eventsList.setSelectionForeground(Color.WHITE);
-        JScrollPane eventsScrollPane=new JScrollPane(eventsList);
+
+        JScrollPane eventsScrollPane = new JScrollPane(eventsList);
         eventsScrollPane.setBorder(new EmptyBorder(0, 0, 0, 0));
         eventsScrollPane.getVerticalScrollBar().setUnitIncrement(16);
-        selectedDateLabel=new JLabel();
+
+        selectedDateLabel = new JLabel();
         selectedDateLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
         selectedDateLabel.setForeground(TEXT_PRIMARY);
-        eventCountLabel=new JLabel();
+
+        eventCountLabel = new JLabel();
         eventCountLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         eventCountLabel.setForeground(TEXT_SECONDARY);
-        addEventButton=UIComponentFactory.createPrimaryButton("+ New Event", PRIMARY_BLUE);
+
+        addEventButton = UIComponentFactory.createPrimaryButton("+ New Event", PRIMARY_BLUE);
         addEventButton.setFont(new Font("Segoe UI", Font.BOLD, 13));
+
         setupButtonActions(prevMonthBtn, todayBtn, nextMonthBtn);
-        calendarScrollPane=new JScrollPane(calendarGrid);
-        JPanel navigationPanel=CalendarComponents.createNavigationPanel(prevMonthBtn, todayBtn, nextMonthBtn,monthYearLabel, viewModePanel);
-        JPanel contentPanel=CalendarComponents.createContentPanel(calendarGrid, eventsScrollPane,selectedDateLabel, eventCountLabel,addEventButton, controller,calendarScrollPane);
-        statusLabel=new JLabel("Ready");
+
+        calendarScrollPane = new JScrollPane(calendarGrid);
+        // Set a preferred size to stabilize the calendar layout
+        calendarScrollPane.setPreferredSize(new Dimension(600, 400));
+
+        JPanel navigationPanel = CalendarComponents.createNavigationPanel(prevMonthBtn, todayBtn, nextMonthBtn, monthYearLabel, viewModePanel);
+        JPanel contentPanel = CalendarComponents.createContentPanel(calendarGrid, eventsScrollPane, selectedDateLabel, eventCountLabel, addEventButton, controller, calendarScrollPane);
+
+        statusLabel = new JLabel("Ready");
         statusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         statusLabel.setForeground(TEXT_SECONDARY);
-        unsavedLabel=new JLabel("No unsaved changes");
+
+        unsavedLabel = new JLabel("No unsaved changes");
         unsavedLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         unsavedLabel.setForeground(TEXT_SECONDARY);
-        JPanel statusBar=CalendarComponents.createStatusBar(statusLabel, unsavedLabel);
+
+        JPanel statusBar = CalendarComponents.createStatusBar(statusLabel, unsavedLabel);
+
         setLayout(new BorderLayout());
         add(navigationPanel, BorderLayout.NORTH);
         add(contentPanel, BorderLayout.CENTER);
-        add(statusBar, BorderLayout.SOUTH);
-        JButton saveButton=UIComponentFactory.createPrimaryButton("Save", PRIMARY_BLUE);
+        add(statusBar, BorderLayout.SOUTH); // Status bar remains at the very bottom
+
+        JButton saveButton = UIComponentFactory.createPrimaryButton("Save", PRIMARY_BLUE);
         saveButton.addActionListener(e -> handleSaveAction());
         ((JPanel)((BorderLayout) navigationPanel.getLayout()).getLayoutComponent(BorderLayout.WEST)).add(saveButton);
-        JButton aiPopulateBtn=null;
-        for (Component comp:((JPanel)((BorderLayout) navigationPanel.getLayout()).getLayoutComponent(BorderLayout.WEST)).getComponents()){
-            if (comp instanceof JButton&&"Populate by AI".equals(((JButton) comp).getText())){
-                aiPopulateBtn=(JButton) comp;
+
+        JButton aiPopulateBtn = null;
+        for (Component comp : ((JPanel)((BorderLayout) navigationPanel.getLayout()).getLayoutComponent(BorderLayout.WEST)).getComponents()){
+            if (comp instanceof JButton && "Populate by AI".equals(((JButton) comp).getText())){
+                aiPopulateBtn = (JButton) comp;
                 break;
             }
         }
-        if (aiPopulateBtn!=null){
+        if (aiPopulateBtn != null){
             aiPopulateBtn.addActionListener(e -> controller.showAIConfigDialog(CalendarFrame.this));
         }
     }
+
     private void addViewModeButtons(){
-        for (AppState.ViewMode mode:AppState.ViewMode.values()){
-            JButton button=UIComponentFactory.createViewModeButton(mode.toString().replace("_VIEW", ""),mode,appState.getCurrentViewMode() ==mode,PRIMARY_GREEN,NEUTRAL_BG,NEUTRAL_MID,NEUTRAL_LIGHT,TEXT_PRIMARY);
-            button.addActionListener(e ->{
-                currentSelectedDate=appState.getSelectedDate();
+        for (AppState.ViewMode mode : AppState.ViewMode.values()){
+            JButton button = UIComponentFactory.createViewModeButton(mode.toString().replace("_VIEW", ""), mode, appState.getCurrentViewMode() == mode, PRIMARY_GREEN, NEUTRAL_BG, NEUTRAL_MID, NEUTRAL_LIGHT, TEXT_PRIMARY);
+            button.addActionListener(e -> {
+                currentSelectedDate = appState.getSelectedDate();
                 controller.setViewMode(mode);
                 updateViewModeButtonStates();
                 updateCalendar();
@@ -177,8 +204,9 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener{
             viewModePanel.add(button);
         }
     }
+
     private void setupButtonActions(JButton prevBtn, JButton todayBtn, JButton nextBtn){
-        prevBtn.addActionListener(e ->{
+        prevBtn.addActionListener(e -> {
             switch (appState.getCurrentViewMode()){
                 case DAY_VIEW: controller.navigateToPreviousDay(); break;
                 case WEEK_VIEW: controller.navigateToPreviousWeek(); break;
@@ -186,7 +214,7 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener{
                 case AGENDA_VIEW: controller.navigateToPreviousMonth(); break;
             }
         });
-        nextBtn.addActionListener(e ->{
+        nextBtn.addActionListener(e -> {
             switch (appState.getCurrentViewMode()){
                 case DAY_VIEW: controller.navigateToNextDay(); break;
                 case WEEK_VIEW: controller.navigateToNextWeek(); break;
@@ -197,21 +225,23 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener{
         todayBtn.addActionListener(e -> controller.goToToday());
         addEventButton.addActionListener(e -> showAddEventDialog());
     }
+
     private void setupListeners(){
         appState.addPropertyChangeListener(this);
-        JPopupMenu popupMenu=new JPopupMenu();
-        JMenuItem deleteMenuItem=new JMenuItem("Delete Event");
+        JPopupMenu popupMenu = new JPopupMenu();
+        JMenuItem deleteMenuItem = new JMenuItem("Delete Event");
         deleteMenuItem.addActionListener(e -> handleEventDeletion());
-        JMenuItem editMenuItem=new JMenuItem("Edit Event");
+        JMenuItem editMenuItem = new JMenuItem("Edit Event");
         editMenuItem.addActionListener(e -> handleEventEdit());
         popupMenu.add(deleteMenuItem);
         popupMenu.add(editMenuItem);
+
         eventsList.addMouseListener(new java.awt.event.MouseAdapter(){
             @Override
             public void mouseClicked(java.awt.event.MouseEvent e){
                 if (SwingUtilities.isRightMouseButton(e)){
-                    int index=eventsList.locationToIndex(e.getPoint());
-                    if (index!=-1){
+                    int index = eventsList.locationToIndex(e.getPoint());
+                    if (index != -1){
                         eventsList.setSelectedIndex(index);
                         popupMenu.show(eventsList, e.getX(), e.getY());
                     }
@@ -219,110 +249,155 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener{
             }
         });
     }
+
     @Override
     public void propertyChange(PropertyChangeEvent evt){
         SwingUtilities.invokeLater(() -> updateUIFromState());
     }
+
     private void updateUIFromState(){
         updateCalendar();
         updateEvents();
         updateSidebar();
         updateStatusBar();
     }
+
     private void updateCalendar(){
-        EventEditor.CalendarRenderer.renderCalendar(appState.getCurrentViewMode(),appState.getSelectedDate(),controller,calendarGrid,monthYearLabel,calendarScrollPane,currentSelectedDate,appState,this);
+        EventEditor.CalendarRenderer.renderCalendar(appState.getCurrentViewMode(), appState.getSelectedDate(), controller, calendarGrid, monthYearLabel, calendarScrollPane, currentSelectedDate, appState, this);
         updateViewModeButtonStates();
     }
+
     private void updateViewModeButtonStates(){
-        for (Component c:viewModePanel.getComponents()){
+        for (Component c : viewModePanel.getComponents()){
             if (c instanceof JButton){
-                JButton button=(JButton) c;
-                Object mode=button.getClientProperty("viewMode");
+                JButton button = (JButton) c;
+                Object mode = button.getClientProperty("viewMode");
                 if (mode instanceof AppState.ViewMode){
-                    AppState.ViewMode viewMode=(AppState.ViewMode) mode;
-                    boolean active=appState.getCurrentViewMode() ==viewMode;
-                    UIComponentFactory.updateViewModeButtonStyle(button,active,PRIMARY_GREEN,NEUTRAL_BG,NEUTRAL_MID,TEXT_PRIMARY);
+                    AppState.ViewMode viewMode = (AppState.ViewMode) mode;
+                    boolean active = appState.getCurrentViewMode() == viewMode;
+                    UIComponentFactory.updateViewModeButtonStyle(button, active, PRIMARY_GREEN, NEUTRAL_BG, NEUTRAL_MID, TEXT_PRIMARY);
                 }
             }
         }
     }
+
     private void updateEvents(){
-        SwingUtilities.invokeLater(() ->{
+        SwingUtilities.invokeLater(() -> {
             eventsListModel.clear();
-            LocalDate selectedDate=appState.getSelectedDate();
-            List<Event> events=controller.getEventsbyDate(selectedDate);
+            LocalDate selectedDate = appState.getSelectedDate();
+            List<Event> events = controller.getEventsbyDate(selectedDate);
             events.sort(Comparator.comparing(Event::getStartTime));
-            for (Event event:events){
+            for (Event event : events){
                 eventsListModel.addElement(event);
             }
             if (events.isEmpty()){
-                eventsListModel.addElement(null);
+                eventsListModel.addElement(null); // Or handle empty state differently if needed
             }
         });
     }
+
     private void updateSidebar(){
-        SwingUtilities.invokeLater(() ->{
-            LocalDate selectedDate=appState.getSelectedDate();
-            List<Event> events=controller.getEventsbyDate(selectedDate);
+        SwingUtilities.invokeLater(() -> {
+            LocalDate selectedDate = appState.getSelectedDate();
+            List<Event> events = controller.getEventsbyDate(selectedDate);
             selectedDateLabel.setText(selectedDate.format(dateFormatter));
-            eventCountLabel.setText(events.size()+" event"+(events.size()!=1?"s":""));
+            eventCountLabel.setText(events.size() + " event" + (events.size() != 1 ? "s" : ""));
         });
     }
+
     private void updateStatusBar(){
-        SwingUtilities.invokeLater(() ->{
-            int totalEvents=controller.getEventCount();
-            List<Event> todaysEvents=controller.getEventsbyDate(LocalDate.now());
-            String status=String.format("Total events: %d | Today: %d event%s | View: %s",totalEvents,todaysEvents.size(),todaysEvents.size()!=1?"s":"",appState.getCurrentViewMode().toString().replace("_VIEW", ""));
+        SwingUtilities.invokeLater(() -> {
+            int totalEvents = controller.getEventCount();
+            List<Event> todaysEvents = controller.getEventsbyDate(LocalDate.now());
+            String status = String.format("Total events: %d | Today: %d event%s | View: %s", totalEvents, todaysEvents.size(), todaysEvents.size() != 1 ? "s" : "", appState.getCurrentViewMode().toString().replace("_VIEW", ""));
             statusLabel.setText(status);
-            unsavedLabel.setText(controller.hasUnsavedChanges()?"Unsaved changes":"All changes saved");
-            unsavedLabel.setForeground(controller.hasUnsavedChanges()?PRIMARY_RED:TEXT_SECONDARY);
+            unsavedLabel.setText(controller.hasUnsavedChanges() ? "Unsaved changes" : "All changes saved");
+            unsavedLabel.setForeground(controller.hasUnsavedChanges() ? PRIMARY_RED : TEXT_SECONDARY);
         });
     }
+
     private void showAddEventDialog(){
-        EventEditor.showAddEventDialog(this, controller, appState.getSelectedDate(),PRIMARY_BLUE, PRIMARY_RED, NEUTRAL_BG,NEUTRAL_MID, TEXT_PRIMARY, TEXT_SECONDARY);
+        EventEditor.showAddEventDialog(this, controller, appState.getSelectedDate(), PRIMARY_BLUE, PRIMARY_RED, NEUTRAL_BG, NEUTRAL_MID, TEXT_PRIMARY, TEXT_SECONDARY);
     }
+
     private void showEditEventDialog(Event event){
-        EventEditor.showEditEventDialog(this, controller, event,PRIMARY_BLUE, PRIMARY_RED, NEUTRAL_BG,NEUTRAL_MID, TEXT_PRIMARY, TEXT_SECONDARY);
+        EventEditor.showEditEventDialog(this, controller, event, PRIMARY_BLUE, PRIMARY_RED, NEUTRAL_BG, NEUTRAL_MID, TEXT_PRIMARY, TEXT_SECONDARY);
     }
+
     public void handleWindowClosing(){
         if (controller.hasUnsavedChanges()){
-            int result=JOptionPane.showConfirmDialog(this,"You have unsaved changes. Save before exiting?","Save Changes",JOptionPane.YES_NO_CANCEL_OPTION);
-            if (result==JOptionPane.YES_OPTION){
+            int result = JOptionPane.showConfirmDialog(this, "You have unsaved changes. Save before exiting?", "Save Changes", JOptionPane.YES_NO_CANCEL_OPTION);
+            if (result == JOptionPane.YES_OPTION){
                 controller.saveCalendar();
-            }
-            else if (result==JOptionPane.CANCEL_OPTION){
-                return;
+            } else if (result == JOptionPane.CANCEL_OPTION){
+                return; // Cancel closing
             }
         }
+        // Call cleanup for the detached audio player if it exists
+        if (audioPlayerWindow != null && audioPlayerWindow.isVisible()) {
+             // Assuming the AudioPlayerPanel is the content pane or accessible
+             Component contentPane = audioPlayerWindow.getContentPane();
+             if (contentPane instanceof ui.AudioPlayerFrame) {
+                 ((ui.AudioPlayerFrame) contentPane).cleanup();
+             }
+             audioPlayerWindow.dispose(); // Close the audio player window
+         }
         System.exit(0);
     }
+
     private void handleSaveAction(){
-        boolean saved=controller.saveCalendar();
+        boolean saved = controller.saveCalendar();
         if (saved){
             statusLabel.setText("Calendar saved successfully!");
-        }
-        else{
+        } else {
             statusLabel.setText("Save failed!");
         }
     }
+
     private void handleEventDeletion(){
-        Event selectedEvent=eventsList.getSelectedValue();
-        if (selectedEvent!=null){
-            int confirm=JOptionPane.showConfirmDialog(this,"Are you sure you want to delete '"+selectedEvent.getTitle()+"'?","Confirm Delete",JOptionPane.YES_NO_OPTION);
-            if (confirm==JOptionPane.YES_OPTION){
-                boolean deleted=controller.deleteEvent(selectedEvent);
+        Event selectedEvent = eventsList.getSelectedValue();
+        if (selectedEvent != null){
+            int confirm = JOptionPane.showConfirmDialog(this, "Are you sure you want to delete '" + selectedEvent.getTitle() + "'?", "Confirm Delete", JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.YES_OPTION){
+                boolean deleted = controller.deleteEvent(selectedEvent);
                 if (deleted){
-                    statusLabel.setText("Event deleted: "+selectedEvent.getTitle());
+                    statusLabel.setText("Event deleted: " + selectedEvent.getTitle());
                     updateEvents();
                     updateSidebar();
                 }
             }
         }
     }
+
     private void handleEventEdit(){
-        Event selectedEvent=eventsList.getSelectedValue();
-        if (selectedEvent!=null){
+        Event selectedEvent = eventsList.getSelectedValue();
+        if (selectedEvent != null){
             showEditEventDialog(selectedEvent);
+        }
+    }
+
+    // Method to show the detached audio player window
+    public void showAudioPlayer() {
+        if (audioPlayerWindow == null || !audioPlayerWindow.isVisible()) {
+            audioPlayerWindow = new JFrame("Audio Player");
+            ui.AudioPlayerFrame audioPanel = new ui.AudioPlayerFrame();
+            audioPlayerWindow.setContentPane(audioPanel);
+            audioPlayerWindow.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE); // Only dispose window, don't exit app
+            audioPlayerWindow.setSize(500, 400); // Set a smaller default size
+            audioPlayerWindow.setMinimumSize(new Dimension(400, 300));
+            audioPlayerWindow.setLocationRelativeTo(this); // Center relative to main frame initially
+            audioPlayerWindow.setVisible(true);
+
+            // Add listener to clean up resources when the audio player window is closed
+            audioPlayerWindow.addWindowListener(new java.awt.event.WindowAdapter() {
+                @Override
+                public void windowClosed(java.awt.event.WindowEvent e) {
+                    audioPanel.cleanup();
+                    audioPlayerWindow = null; // Clear the reference
+                }
+            });
+        } else {
+            audioPlayerWindow.toFront(); // Bring existing window to front if already open
         }
     }
 }

@@ -14,8 +14,10 @@ public class MenuBuilder{
     public static JMenuBar createMenuBar(CalendarFrame frame, CalendarController controller){
         JMenuBar menuBar=new JMenuBar();
         JMenu fileMenu=createFileMenu(frame, controller);
+        JMenu toolsMenu=createToolsMenu(frame); // Create the Tools menu
         JMenu helpMenu=createHelpMenu(frame);
         menuBar.add(fileMenu);
+        menuBar.add(toolsMenu); // Add the Tools menu to the menubar
         menuBar.add(helpMenu);
         return menuBar;
     }
@@ -35,6 +37,20 @@ public class MenuBuilder{
         fileMenu.add(exitMenuItem);
         return fileMenu;
     }
+
+    // New helper method to create the Tools menu
+    private static JMenu createToolsMenu(CalendarFrame frame) {
+        JMenu toolsMenu = new JMenu("Tools");
+        toolsMenu.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+
+        JMenuItem showAudioPlayerItem = new JMenuItem("Show Audio Player");
+        showAudioPlayerItem.addActionListener(e -> frame.showAudioPlayer()); // Link to the method in CalendarFrame
+
+        toolsMenu.add(showAudioPlayerItem);
+
+        return toolsMenu;
+    }
+
     private static JMenu createHelpMenu(CalendarFrame frame){
         JMenu helpMenu=new JMenu("Help");
         helpMenu.setFont(new Font("Segoe UI", Font.PLAIN, 13));
