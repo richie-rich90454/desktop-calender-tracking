@@ -500,17 +500,17 @@ public class CalendarController {
 		};
 		worker.execute();
 	}
-	private JDialog createProgressDialog(){
-		JDialog dialog=new JDialog((Frame) null, "Generating Events", true);
-		dialog.setLayout(new BorderLayout());
-		JLabel label=new JLabel("Generating events with AI... Please wait.", SwingConstants.CENTER);
-		label.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-		dialog.add(label, BorderLayout.CENTER);
-		dialog.setSize(300, 150);
-		dialog.setLocationRelativeTo(null);
-		dialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
-		return dialog;
-	}
+	// private JDialog createProgressDialog(){
+	// 	JDialog dialog=new JDialog((Frame) null, "Generating Events", true);
+	// 	dialog.setLayout(new BorderLayout());
+	// 	JLabel label=new JLabel("Generating events with AI... Please wait.", SwingConstants.CENTER);
+	// 	label.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+	// 	dialog.add(label, BorderLayout.CENTER);
+	// 	dialog.setSize(300, 150);
+	// 	dialog.setLocationRelativeTo(null);
+	// 	dialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+	// 	return dialog;
+	// }
 	public boolean testAIConnection(AIClient aiClient){
 		if (aiClient==null){
 			return false;

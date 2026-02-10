@@ -77,7 +77,7 @@ public class AudioFileManager {
                     try {
                         int trackNumber = Integer.parseInt(matcher.group(1));
                         String displayName = matcher.group(2);
-                        String extension = matcher.group(3);
+                        // String extension = matcher.group(3);
                         
                         // All files are now WAV after conversion
                         AudioTrack track = new AudioTrack(filePath.toFile(), trackNumber, displayName, 0);
@@ -103,39 +103,50 @@ public class AudioFileManager {
     }
 
     public AudioTrack uploadAudioFile(File sourceFile) throws IOException {
-        if (!sourceFile.exists() || !sourceFile.isFile()) {
-            throw new IOException("Source file does not exist: " + sourceFile.getPath());
-        }
-
-        String originalName = sourceFile.getName();
-        String extension = getFileExtension(originalName);
-        
-        // Check if format is supported
-        if (!isSupportedAudioExtension(extension)) {
-            throw new IOException("Unsupported audio format: " + extension);
-        }
-
-        int trackNumber = getNextTrackNumber();
-        String baseName = removeExtension(originalName);
-        String prefixedName = String.format(PREFIX_FORMAT + "_%s." + OUTPUT_EXTENSION, trackNumber, baseName);
-        Path destinationPath = audioDirectory.resolve(prefixedName);
-
-        // Convert MP3 to WAV if needed, otherwise copy directly
-        if ("mp3".equalsIgnoreCase(extension) || 
-            "ogg".equalsIgnoreCase(extension) || 
-            "flac".equalsIgnoreCase(extension)) {
-            convertToWav(sourceFile, destinationPath);
-        } else if ("mid".equalsIgnoreCase(extension) || "midi".equalsIgnoreCase(extension)) {
-            // MIDI files can be kept as-is since Java supports them natively
-            Files.copy(sourceFile.toPath(), destinationPath, StandardCopyOption.REPLACE_EXISTING);
-        } else {
-            // WAV files can be copied directly
-            Files.copy(sourceFile.toPath(), destinationPath, StandardCopyOption.REPLACE_EXISTING);
-        }
-
-        return new AudioTrack(destinationPath.toFile(), trackNumber);
+    if (!sourceFile.exists() || !sourceFile.isFile()) {
+        throw new IOException("Source file does not exist: " + sourceFile.getPath());
     }
 
+    String originalName = sourceFile.getName();
+    String extension = getFileExtension(originalName);
+    
+    // Check if format is supported
+    if (!isSupportedAudioExtension(extension)) {
+        throw new IOException("Unsupported audio format: " + extension);
+    }
+
+    int trackNumber = getNextTrackNumber();
+    String baseName = removeExtension(originalName);
+    
+    // IMPORTANT FIX: Determine correct extension for each file type
+    String finalExtension;
+    if ("mid".equalsIgnoreCase(extension) || "midi".equalsIgnoreCase(extension)) {
+        // MIDI files keep their original extension
+        finalExtension = extension.toLowerCase(); // .mid or .midi
+    } else {
+        // All other formats convert to WAV
+        finalExtension = OUTPUT_EXTENSION; // .wav
+    }
+    
+    String prefixedName = String.format(PREFIX_FORMAT + "_%s.%s", trackNumber, baseName, finalExtension);
+    Path destinationPath = audioDirectory.resolve(prefixedName);
+
+    // Convert MP3/OGG/FLAC to WAV if needed, otherwise copy directly
+    if ("mp3".equalsIgnoreCase(extension) || 
+        "ogg".equalsIgnoreCase(extension) || 
+        "flac".equalsIgnoreCase(extension)) {
+        convertToWav(sourceFile, destinationPath);
+    } else if ("mid".equalsIgnoreCase(extension) || "midi".equalsIgnoreCase(extension)) {
+        // MIDI files copied as-is with their original .mid/.midi extension
+        Files.copy(sourceFile.toPath(), destinationPath, StandardCopyOption.REPLACE_EXISTING);
+        System.out.println("MIDI file uploaded as: " + prefixedName + " (kept original extension)");
+    } else {
+        // WAV files can be copied directly (already .wav extension)
+        Files.copy(sourceFile.toPath(), destinationPath, StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    return new AudioTrack(destinationPath.toFile(), trackNumber, baseName, 0);
+}
     /**
      * Convert an audio file to WAV format using FFmpeg.
      * This provides lossless conversion for MP3, OGG, FLAC files.
@@ -217,24 +228,42 @@ public class AudioFileManager {
     /**
      * Simple method for systems without FFmpeg (fallback - copies file as-is)
      */
-    private void copyWithoutConversion(File sourceFile, Path destinationPath) throws IOException {
-        System.err.println("Warning: FFmpeg not available, copying file without conversion");
-        System.err.println("Audio playback may not work properly for MP3 files");
-        Files.copy(sourceFile.toPath(), destinationPath, StandardCopyOption.REPLACE_EXISTING);
-    }
+    // private void copyWithoutConversion(File sourceFile, Path destinationPath) throws IOException {
+    //     System.err.println("Warning: FFmpeg not available, copying file without conversion");
+    //     System.err.println("Audio playback may not work properly for MP3 files");
+    //     Files.copy(sourceFile.toPath(), destinationPath, StandardCopyOption.REPLACE_EXISTING);
+    // }
 
     public boolean deleteAudioTrack(AudioTrack track) {
-        try {
-            File audioFile = track.getAudioFile();
-            if (audioFile.exists() && audioFile.delete()) {
-                renumberTracksAfterDeletion(track.getTrackNumber());
-                return true;
+    File audioFile = track.getAudioFile();
+    
+    // Get current tracks BEFORE deletion to determine what needs renumbering
+    List<AudioTrack> currentTracks = scanAudioFiles();
+    int deletedTrackNumber = track.getTrackNumber();
+    
+    // Delete the file
+    if (audioFile.exists() && audioFile.delete()) {
+        // Find tracks that need renumbering (those with numbers higher than the deleted one)
+        List<AudioTrack> tracksToRenumber = currentTracks.stream()
+            .filter(t -> t.getTrackNumber() > deletedTrackNumber)
+            .sorted(Comparator.comparingInt(AudioTrack::getTrackNumber))
+            .collect(Collectors.toList());
+        
+        // Renumber the remaining higher-numbered tracks
+        for (int i = 0; i < tracksToRenumber.size(); i++) {
+            AudioTrack trackToRenumber = tracksToRenumber.get(i);
+            int newNumber = deletedTrackNumber + i;
+            try {
+                renameTrackFile(trackToRenumber, newNumber);
+            } catch (IOException e) {
+                System.err.println("Error renaming track " + trackToRenumber.getDisplayName() + ": " + e.getMessage());
+                // Continue with other tracks even if one fails
             }
-            return false;
-        } catch (Exception e) {
-            throw new RuntimeException("Error deleting audio track: " + e.getMessage(), e);
         }
+        return true;
     }
+    return false;
+}
 
     public void reorderTracks(List<AudioTrack> newOrder) {
         try {
@@ -289,25 +318,25 @@ public class AudioFileManager {
         track.setAudioFile(newPath.toFile());
     }
 
-    private void renumberTracksAfterDeletion(int deletedNumber) {
-        try {
-            List<AudioTrack> tracks = scanAudioFiles();
-            List<AudioTrack> tracksToRenumber = tracks.stream()
-                    .filter(track -> track.getTrackNumber() > deletedNumber)
-                    .sorted(Comparator.comparingInt(AudioTrack::getTrackNumber))
-                    .collect(Collectors.toList());
+    // private void renumberTracksAfterDeletion(int deletedNumber) {
+    //     try {
+    //         List<AudioTrack> tracks = scanAudioFiles();
+    //         List<AudioTrack> tracksToRenumber = tracks.stream()
+    //                 .filter(track -> track.getTrackNumber() > deletedNumber)
+    //                 .sorted(Comparator.comparingInt(AudioTrack::getTrackNumber))
+    //                 .collect(Collectors.toList());
 
-            for (int i = 0; i < tracksToRenumber.size(); i++) {
-                AudioTrack track = tracksToRenumber.get(i);
-                int newNumber = deletedNumber + i;
-                if (newNumber != track.getTrackNumber()) {
-                    renameTrackFile(track, newNumber);
-                }
-            }
-        } catch (Exception e) {
-            throw new RuntimeException("Error renumbering tracks after deletion: " + e.getMessage(), e);
-        }
-    }
+    //         for (int i = 0; i < tracksToRenumber.size(); i++) {
+    //             AudioTrack track = tracksToRenumber.get(i);
+    //             int newNumber = deletedNumber + i;
+    //             if (newNumber != track.getTrackNumber()) {
+    //                 renameTrackFile(track, newNumber);
+    //             }
+    //         }
+    //     } catch (Exception e) {
+    //         throw new RuntimeException("Error renumbering tracks after deletion: " + e.getMessage(), e);
+    //     }
+    // }
 
     public boolean clearAllAudioFiles() {
         try {

@@ -103,7 +103,7 @@ public class OverlayManager {
     }
     private boolean isOverlayRunning(){
         try{
-            String tasklist=System.getenv("windir")+"\\system32\\tasklist.exe";
+            // String tasklist=System.getenv("windir")+"\\system32\\tasklist.exe";
             Process process = new ProcessBuilder("tasklist").start();
             BufferedReader reader=new BufferedReader(new InputStreamReader(process.getInputStream()));
             String line;
