@@ -18,8 +18,8 @@ import java.util.ArrayList;
  *
  * Subclasses implement provider-specific request building and response parsing.
  */
-public abstract class BaseAIClient implements AIClient {
 
+public abstract class BaseAIClient implements AIClient{
     protected String apiKey;
     protected String endpoint;
     protected String model;
@@ -28,13 +28,11 @@ public abstract class BaseAIClient implements AIClient {
     protected final UsageStats totalUsageStats;
     protected static final DateTimeFormatter DATE_FORMATTER=DateTimeFormatter.ISO_LOCAL_DATE;
     protected static final DateTimeFormatter TIME_FORMATTER=new DateTimeFormatterBuilder().appendPattern("HH:mm").optionalStart().appendPattern(":ss").optionalEnd().toFormatter();
-
     protected BaseAIClient(){
         this.httpClient=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).version(HttpClient.Version.HTTP_2).build();
         this.lastUsageStats=new UsageStats();
         this.totalUsageStats=new UsageStats();
     }
-
     @Override
     public abstract List<Event> generateEvents(String goalDescription, LocalDate startDate, int days, List<Event> existingEvents) throws AIException;
     @Override
@@ -57,49 +55,56 @@ public abstract class BaseAIClient implements AIClient {
         return false;
     }
     @Override
-    public void setApiKey(String apiKey){ 
-        this.apiKey=apiKey; 
+    public void setApiKey(String apiKey){
+        this.apiKey=apiKey;
     }
     @Override
-    public void setEndpoint(String endpoint){ 
-        this.endpoint=endpoint; 
+    public void setEndpoint(String endpoint){
+        this.endpoint=endpoint;
     }
     @Override
-    public void setModel(String model){ 
-        this.model=model; 
+    public void setModel(String model){
+        this.model=model;
     }
     @Override
-    public String getCurrentModel(){ 
-        return model; 
+    public String getCurrentModel(){
+        return model;
     }
     @Override
-    public UsageStats getLastUsageStats(){ 
-        return lastUsageStats; 
+    public UsageStats getLastUsageStats(){
+        return lastUsageStats;
     }
     @Override
-    public UsageStats getTotalUsageStats(){ 
-        return totalUsageStats; 
+    public UsageStats getTotalUsageStats(){
+        return totalUsageStats;
     }
     @Override
-    public void resetUsageStats(){ 
-        lastUsageStats.reset(); 
+    public void resetUsageStats(){
+        lastUsageStats.reset();
     }
     @Override
     public void shutdown(){
     }
-
     protected void ensureConfigured() throws AIException{
-        if (apiKey==null||apiKey.isBlank()) throw new AIException("API key not set", AIException.ErrorType.AUTHENTICATION_ERROR);
-        if (endpoint==null||endpoint.isBlank()) throw new AIException("Endpoint not set", AIException.ErrorType.OTHER);
-        if (model==null||model.isBlank()) throw new AIException("Model not set", AIException.ErrorType.OTHER);
+        if (apiKey==null||apiKey.isBlank()){
+            throw new AIException("API key not set", AIException.ErrorType.AUTHENTICATION_ERROR);
+        }
+        if (endpoint==null||endpoint.isBlank()){
+            throw new AIException("Endpoint not set", AIException.ErrorType.OTHER);
+        }
+        if (model==null||model.isBlank()){
+            throw new AIException("Model not set", AIException.ErrorType.OTHER);
+        }
     }
-
     protected String sendRequest(String requestBody) throws AIException{
         try{
             HttpRequest request=buildHttpRequest(requestBody);
             HttpResponse<String> response=httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            System.out.println("HTTP Status: "+response.statusCode());
             if (response.statusCode()!=200){
-                throw new AIException("API request failed with status "+response.statusCode()+": "+response.body(), AIException.ErrorType.OTHER);
+                String errorBody=response.body();
+                System.out.println("Error response: "+errorBody);
+                throw new AIException("API request failed with status "+response.statusCode()+": "+errorBody, AIException.ErrorType.SERVER_ERROR);
             }
             return response.body();
         }
@@ -107,11 +112,9 @@ public abstract class BaseAIClient implements AIClient {
             throw new AIException("Failed to send request: "+e.getMessage(), AIException.ErrorType.NETWORK_ERROR, e);
         }
     }
-
     protected abstract HttpRequest buildHttpRequest(String requestBody);
     protected abstract String buildTestRequest(String prompt);
     protected abstract List<Event> parseResponse(String response, LocalDate startDate, int days, List<Event> existingEvents) throws AIException;
-
     protected Event createEvent(String title, String dateStr, String startTimeStr, String endTimeStr) throws AIException{
         try{
             LocalDate date=LocalDate.parse(dateStr, DATE_FORMATTER);
@@ -123,67 +126,97 @@ public abstract class BaseAIClient implements AIClient {
             throw new AIException("Invalid event: "+title+" "+dateStr+" "+startTimeStr+"-"+endTimeStr, AIException.ErrorType.INVALID_RESPONSE, e);
         }
     }
-
     protected void updateUsageStats(int promptTokens, int completionTokens){
         lastUsageStats.addRequest(promptTokens, completionTokens);
         totalUsageStats.addRequest(promptTokens, completionTokens);
     }
-
     protected int estimateTokens(String text){
         return (int)Math.ceil(text.length()/4.0);
     }
-
     protected String extractJsonValue(String json, String key){
-        if (json==null||key==null) return null;
+        if (json==null||key==null){
+            return null;
+        }
         String search="\""+key+"\":";
         int index=json.indexOf(search);
-        if (index==-1) return null;
+        if (index==-1){
+            return null;
+        }
         index+=search.length();
-        while (index<json.length()&&Character.isWhitespace(json.charAt(index))) index++;
-        if (index>=json.length()) return null;
+        while (index<json.length()&&Character.isWhitespace(json.charAt(index))){
+            index++;
+        }
+        if (index>=json.length()){
+            return null;
+        }
         char first=json.charAt(index);
         if (first=='"'){
             int end=index+1;
             while (end<json.length()){
-                if (json.charAt(end)=='"'&&json.charAt(end-1)!='\\') break;
+                if (json.charAt(end)=='"'&&json.charAt(end-1)!='\\'){
+                    break;
+                }
                 end++;
             }
-            if (end>=json.length()) return null;
+            if (end>=json.length()){
+                return null;
+            }
             return json.substring(index+1, end);
         }
         int end=index;
-        while (end<json.length()&&json.charAt(end)!=','&&json.charAt(end)!='}') end++;
+        while (end<json.length()&&json.charAt(end)!=','&&json.charAt(end)!='}'){
+            end++;
+        }
         return json.substring(index, end).trim();
     }
-
     protected List<String> extractJsonArray(String json, String key){
         List<String> result=new ArrayList<>();
-        if (json==null) return result;
+        if (json==null){
+            return result;
+        }
         int index=key==null||key.isEmpty()?json.indexOf("["):json.indexOf("\""+key+"\":");
-        if (index==-1) return result;
+        if (index==-1){
+            return result;
+        }
         index=json.indexOf("[", index);
-        if (index==-1) return result;
+        if (index==-1){
+            return result;
+        }
         int depth=1;
         int i=index+1;
         while (i<json.length()&&depth>0){
-            if (json.charAt(i)=='[') depth++;
-            else if (json.charAt(i)==']') depth--;
+            if (json.charAt(i)=='['){
+                depth++;
+            }
+            else if (json.charAt(i)==']'){
+                depth--;
+            }
             i++;
         }
-        if (depth!=0) return result;
+        if (depth!=0){
+            return result;
+        }
         String body=json.substring(index+1, i-1);
         StringBuilder current=new StringBuilder();
         int braceDepth=0;
         boolean inString=false;
         char last=0;
         for (char c:body.toCharArray()){
-            if (c=='"'&&last!='\\') inString=!inString;
+            if (c=='"'&&last!='\\'){
+                inString=!inString;
+            }
             if (!inString){
-                if (c=='{') braceDepth++;
-                if (c=='}') braceDepth--;
+                if (c=='{'){
+                    braceDepth++;
+                }
+                if (c=='}'){
+                    braceDepth--;
+                }
                 if (c==','&&braceDepth==0){
                     String item=current.toString().trim();
-                    if (!item.isEmpty()) result.add(item);
+                    if (!item.isEmpty()){
+                        result.add(item);
+                    }
                     current.setLength(0);
                     last=c;
                     continue;
@@ -193,7 +226,9 @@ public abstract class BaseAIClient implements AIClient {
             last=c;
         }
         String lastItem=current.toString().trim();
-        if (!lastItem.isEmpty()) result.add(lastItem);
+        if (!lastItem.isEmpty()){
+            result.add(lastItem);
+        }
         return result;
     }
 }

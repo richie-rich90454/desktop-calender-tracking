@@ -32,13 +32,13 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import javax.swing.Timer;
+
 import calendar.CalendarQuery;
 import ai.*;
 import ui.AIConfigDialog;
 import javax.swing.*;
 import java.awt.*;
-import ai.AIException;
+
 import ui.AIProgressDialog;
 public class CalendarController {
 	private CalendarModel model;
@@ -402,8 +402,21 @@ public class CalendarController {
 	public void showAIConfigDialog(JFrame parentFrame){
 		AIConfigDialog dialog=new AIConfigDialog(parentFrame);
 		dialog.setVisible(true);
-		if (dialog.isConfigured()){
-			generateEventsWithAI(dialog.getAIClient(), dialog.getGoalDescription(), dialog.getDaysToGenerate(), dialog.shouldAvoidConflicts(), parentFrame);
+		if (dialog.isGenerationComplete()){
+			List<Event> generatedEvents=dialog.getGeneratedEvents();
+			if (!generatedEvents.isEmpty()){
+				List<Event> addedEvents=addMultipleEvents(generatedEvents);
+				if (!addedEvents.isEmpty()){
+					JOptionPane.showMessageDialog(parentFrame,
+						"Successfully added " + addedEvents.size() + " AI-generated events!",
+						"Success", JOptionPane.INFORMATION_MESSAGE);
+				}
+				else{
+					JOptionPane.showMessageDialog(parentFrame,
+						"Could not add events (conflicts with existing events).",
+						"Warning", JOptionPane.WARNING_MESSAGE);
+				}
+			}
 		}
 	}
 	public void generateEventsWithAI(AIClient aiClient, String goalDescription, int days, boolean avoidConflicts){
@@ -427,9 +440,9 @@ public class CalendarController {
 					if (progressDialog.isCancelled()) return new ArrayList<>();
 					progressDialog.update("Sending request for: " + goalDescription);
 					if (progressDialog.isCancelled()) return new ArrayList<>();
-					List<Event> events = aiClient.generateEvents(goalDescription, startDate, days, existingEvents, progressDialog);
+					List<Event> events=aiClient.generateEvents(goalDescription, startDate, days, existingEvents, progressDialog);
 					progressDialog.updateSuccess("Generated " + events.size() + " events");
-					for (Event event : events) {
+					for (Event event : events){
 						if (progressDialog.isCancelled()) return new ArrayList<>();
 						progressDialog.updateEvent(event);
 					}

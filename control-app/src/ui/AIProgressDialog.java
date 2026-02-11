@@ -7,14 +7,13 @@ import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+
 /**
- * A modal dialog that displays real-time progress of AI event generation operations.
- * Implements the ProgressCallback interface to receive status updates and provides
- * a user-friendly interface with timestamps, cancellation capability, and output copying.
- * The dialog uses Swing's Event Dispatch Thread for all UI updates and maintains
- * thread safety through SwingUtilities.invokeLater calls.
+ * Progress dialog for AI event generation with real-time logging,
+ * cancellation support, and output copying capabilities.
  */
-public class AIProgressDialog extends JDialog implements ProgressCallback {
+
+public class AIProgressDialog extends JDialog implements ProgressCallback{
     private final JTextArea outputArea;
     private final JButton cancelButton;
     private final JButton copyButton;
@@ -60,7 +59,7 @@ public class AIProgressDialog extends JDialog implements ProgressCallback {
         });
         copyButton.addActionListener(e->{
             String text=outputArea.getText();
-            if (text!=null&&!text.isEmpty()){
+            if (text!=null && !text.isEmpty()){
                 java.awt.datatransfer.StringSelection selection=new java.awt.datatransfer.StringSelection(text);
                 java.awt.datatransfer.Clipboard clipboard=Toolkit.getDefaultToolkit().getSystemClipboard();
                 clipboard.setContents(selection, selection);
