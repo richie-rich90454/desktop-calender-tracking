@@ -37,14 +37,15 @@ namespace CalendarOverlay
         void resize(int width, int height);
         void render();
         void cleanup();
-
+        float dpiScaleX;
+        float dpiScaleY;
         void setEvents(const std::vector<CalendarEvent> &newEvents);
         void setConfig(const OverlayConfig &newConfig);
         void setOpacity(float opacity) {}
         void setPosition(int x, int y) {}
 
         void handleMouseWheel(float delta);
-        void handleMouseDown(int x, int y);
+        bool handleMouseDown(int x, int y);   // ← changed: now returns bool
         void handleMouseMove(int x, int y);
         void handleMouseUp(int x, int y);
         void resetScroll();

@@ -14,7 +14,7 @@
 #include <atomic>
 #include <thread>
 #include <mutex>
-#include <condition_variable>
+#include <functional>
 #include <fstream>
 #include <sstream>
 #include <iomanip>
@@ -33,145 +33,124 @@
 #pragma comment(lib, "mfreadwrite.lib")
 #pragma comment(lib, "mfuuid.lib")
 
-namespace CalendarOverlay
+namespace CalendarOverlay::Audio
 {
-    namespace Audio
+    enum class PlaybackState
     {
+        STOPPED,
+        PLAYING,
+        PAUSED
+    };
 
-        enum class PlaybackState
+    struct AudioTrack
+    {
+        std::wstring filePath;
+        std::wstring fileName;
+        std::wstring displayName;
+        int trackNumber;
+        long duration;                // milliseconds
+        mutable long currentPosition; // milliseconds
+
+        AudioTrack() : trackNumber(0), duration(0), currentPosition(0) {}
+
+        std::wstring getFormattedDuration() const
         {
-            STOPPED,
-            PLAYING,
-            PAUSED
-        };
+            if (duration <= 0) return L"00:00";
+            long seconds = duration / 1000;
+            long minutes = seconds / 60;
+            seconds %= 60;
+            std::wstringstream ss;
+            ss << std::setw(2) << std::setfill(L'0') << minutes << L":"
+               << std::setw(2) << std::setfill(L'0') << seconds;
+            return ss.str();
+        }
 
-        struct AudioTrack
-        {
-            std::wstring filePath;
-            std::wstring fileName;
-            std::wstring displayName;
-            std::wstring fileExtension;
-            int trackNumber;
-            long duration;
-            long currentPosition;
-            bool playing;
+        bool isSupportedFormat() const;
+    };
 
-            AudioTrack() : trackNumber(0), duration(0), currentPosition(0), playing(false) {}
+    class AudioPlayerEngine
+    {
+    public:
+        AudioPlayerEngine();
+        ~AudioPlayerEngine();
 
-            std::wstring getFormattedDuration() const
-            {
-                if (duration <= 0)
-                    return L"00:00";
-                long seconds = duration / 1000;
-                long minutes = seconds / 60;
-                seconds = seconds % 60;
-                std::wstringstream ss;
-                ss << std::setw(2) << std::setfill(L'0') << minutes << L":"
-                   << std::setw(2) << std::setfill(L'0') << seconds;
-                return ss.str();
-            }
+        bool play(const AudioTrack& track);
+        bool pause();
+        bool resume();
+        bool stop();
+        bool seek(long positionMillis);
+        bool setVolume(float volume);
+        bool setMuted(bool muted);
 
-            bool isSupportedFormat() const
-            {
-                std::wstring ext = fileExtension;
-                if (ext.empty() && !filePath.empty())
-                {
-                    size_t dotPos = filePath.find_last_of(L'.');
-                    if (dotPos != std::wstring::npos)
-                        ext = filePath.substr(dotPos + 1);
-                }
-                for (wchar_t &c : ext)
-                    c = towlower(c);
-                return ext == L"mp3" || ext == L"wav" || ext == L"mid" || ext == L"midi";
-            }
-        };
+        PlaybackState getPlaybackState() const { return state; }
+        AudioTrack getCurrentTrack() const { return currentTrack; }
+        long getCurrentPosition() const;
+        long getDuration() const { return currentTrack.duration; }
+        float getVolume() const { return volume; }
+        bool isMuted() const { return muted; }
+        bool isPlaying() const { return state == PlaybackState::PLAYING; }
+        bool isPaused() const { return state == PlaybackState::PAUSED; }
+        bool isStopped() const { return state == PlaybackState::STOPPED; }
 
-        class AudioPlayerEngine
-        {
-        public:
-            AudioPlayerEngine();
-            ~AudioPlayerEngine();
+        void setOnTrackEnd(std::function<void()> callback) { onTrackEnd = callback; }
+        void cleanup();
 
-            bool play(const AudioTrack &track);
-            bool pause();
-            bool resume();
-            bool stop();
-            bool seek(long positionMillis);
-            bool setVolume(float volume);
-            bool setMuted(bool muted);
+    private:
+        bool playWav(const AudioTrack& track);
+        bool playMp3(const AudioTrack& track);
+        void cleanupWav();
+        void cleanupMp3();
+        static HRESULT CreatePlaybackTopology(IMFMediaSource* pSource,
+                                              IMFPresentationDescriptor* pPD,
+                                              IMFTopology** ppTopology);
+        void startPositionUpdater();
+        void stopPositionUpdater();
+        static void CALLBACK waveOutCallback(HWAVEOUT hwo, UINT uMsg,
+                                             DWORD_PTR dwInstance,
+                                             DWORD_PTR dwParam1,
+                                             DWORD_PTR dwParam2);
 
-            PlaybackState getPlaybackState() const { return playbackState; }
-            AudioTrack getCurrentTrack() const { return currentTrack; }
-            long getCurrentPosition() const;
-            long getDuration() const { return currentTrack.duration; }
-            float getVolume() const { return volume; }
-            bool isMuted() const { return muted; }
-            bool isPlaying() const { return playbackState == PlaybackState::PLAYING; }
-            bool isPaused() const { return playbackState == PlaybackState::PAUSED; }
-            bool isStopped() const { return playbackState == PlaybackState::STOPPED; }
+        AudioTrack currentTrack;
+        PlaybackState state;
+        float volume;
+        bool muted;
+        std::function<void()> onTrackEnd;
 
-            void cleanup();
+        // WAV
+        HWAVEOUT hWaveOut;
+        WAVEFORMATEX waveFormat;
+        std::vector<BYTE> waveData;
+        std::unique_ptr<WAVEHDR> waveHeader;
 
-        private:
-            bool playWav(const AudioTrack &track);
-            bool playMp3(const AudioTrack &track);
-            bool playMidi(const AudioTrack &track);
+        // MP3
+        IMFMediaSession* pMediaSession;
+        IMFMediaSource* pMediaSource;
 
-            void cleanupWav();
-            void cleanupMp3();
-            void cleanupMidi();
+        // Threading
+        std::thread positionThread;
+        std::atomic<bool> positionThreadRunning;
+        std::atomic<bool> cleanedUp;
+        mutable std::mutex mutex;
+    };
 
-            void startPositionUpdater();
-            void stopPositionUpdater();
+    class AudioFileManager
+    {
+    public:
+        AudioFileManager();
+        ~AudioFileManager();
 
-            static void CALLBACK WaveOutCallback(HWAVEOUT hwo, UINT uMsg, DWORD_PTR dwInstance,
-                                                 DWORD_PTR dwParam1, DWORD_PTR dwParam2);
+        std::vector<AudioTrack> scanAudioFiles();
+        AudioTrack uploadAudioFile(const std::wstring& filePath);
+        bool deleteAudioTrack(const AudioTrack& track);
+        bool clearAllAudioFiles();
+        std::wstring getAudioDirectory() const;
 
-            AudioTrack currentTrack;
-            PlaybackState playbackState;
-            float volume;
-            bool muted;
-
-            // WAV
-            HWAVEOUT hWaveOut;
-            WAVEFORMATEX waveFormat;
-
-            // MP3
-            IMFMediaSession *pMediaSession; // direct Media Foundation session
-
-            // MIDI
-            HMIDIOUT hMidiOut;
-            HMIDISTRM hMidiStream;        // separate stream handle for MIDI
-            MIDIHDR *midiHeader;          // stored for cleanup
-            std::vector<char> midiBuffer; // holds the MIDI file data
-            std::vector<char> waveBuffer;
-            std::thread positionUpdater;
-            std::atomic<bool> running;
-            mutable std::mutex stateMutex;
-            std::condition_variable stateCV;
-        };
-
-        class AudioFileManager
-        {
-        public:
-            AudioFileManager();
-            ~AudioFileManager();
-
-            std::vector<AudioTrack> scanAudioFiles();
-            AudioTrack uploadAudioFile(const std::wstring &filePath);
-            bool deleteAudioTrack(const AudioTrack &track);
-            bool clearAllAudioFiles();
-            std::wstring getAudioDirectory() const;
-
-        private:
-            std::wstring audioDirectory;
-            int nextTrackNumber;
-
-            std::wstring getUniqueFileName(const std::wstring &originalName);
-            bool copyFileToAudioDir(const std::wstring &sourcePath, std::wstring &destPath);
-            AudioTrack createTrackFromFile(const std::wstring &filePath, int trackNumber);
-            long getAudioDuration(const std::wstring &filePath);
-        };
-
-    } // namespace Audio
-} // namespace CalendarOverlay
+    private:
+        std::wstring audioDirectory;
+        int nextTrackNumber;
+        std::wstring getUniqueFileName(const std::wstring& originalName);
+        bool copyFileToAudioDir(const std::wstring& sourcePath, std::wstring& destPath);
+        AudioTrack createTrackFromFile(const std::wstring& filePath, int trackNumber);
+        long getAudioDuration(const std::wstring& filePath);
+    };
+}

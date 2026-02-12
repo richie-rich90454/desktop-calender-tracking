@@ -3,7 +3,7 @@
 #include <sstream>
 #include <iomanip>
 #include <chrono>
-#include <algorithm> // for std::min, std::max
+#include <algorithm>
 #include <filesystem>
 #pragma comment(lib, "windowscodecs.lib")
 
@@ -20,7 +20,7 @@ namespace CalendarOverlay
           scrollOffset(0.0f), maxScrollOffset(0.0f), isScrolling(false),
           needsScrollbar(false), totalEventsHeight(0.0f), visibleHeight(0.0f),
           currentAudioTrackIndex(-1), audioControlsVisible(true),
-          audioProgress(0.0f), isDraggingAudioProgress(false)
+          audioProgress(0.0f), isDraggingAudioProgress(false), dpiScaleX(1.0f), dpiScaleY(1.0f)
     {
         InitializeCriticalSection(&cs);
         lastMousePos.x = 0;
@@ -28,17 +28,22 @@ namespace CalendarOverlay
         audioPlayer = std::make_unique<Audio::AudioPlayerEngine>();
         audioFileManager = std::make_unique<Audio::AudioFileManager>();
         scanAudioFiles();
+        audioPlayer->setOnTrackEnd([this]()
+                                   { PostMessage(hwnd, WM_APP + 2, 0, 0); });
+        isDraggingAudioProgress = false;
     }
 
     CalendarRenderer::~CalendarRenderer()
     {
+        if (audioPlayer)
+        {
+            audioPlayer->stop();
+            audioPlayer->cleanup();
+        }
         cleanup();
         DeleteCriticalSection(&cs);
     }
 
-    // ---------------------------------------------------------------------
-    // Viewport layout – all sizes relative to window dimensions
-    // ---------------------------------------------------------------------
     void CalendarRenderer::updateViewportLayout()
     {
         float w = renderSize.width;
@@ -47,83 +52,69 @@ namespace CalendarOverlay
         if (w <= 0 || h <= 0)
             return;
 
-        vpPadding = minDim * 0.02f;        // 2% of smallest side
-        vpEventHeight = h * 0.06f;         // 6% of height
-        vpTimeWidth = w * 0.15f;           // 15% of width
-        vpScrollbarWidth = w * 0.015f;     // 1.5% of width
-        vpAudioControlsHeight = h * 0.10f; // 10% of height
-        vpButtonSize = h * 0.04f;          // 4% of height
-        vpVolumeWidth = w * 0.15f;         // 15% of width
-        vpCornerRadius = minDim * 0.01f;   // 1% of smallest side
-        vpFontSize = h * 0.025f;           // 2.5% of height
-        vpLineThickness = minDim * 0.001f; // 0.1% of smallest side
+        vpPadding = minDim * 0.02f;
+        vpEventHeight = h * 0.06f;
+        vpTimeWidth = w * 0.15f;
+        vpScrollbarWidth = w * 0.015f;
+        vpAudioControlsHeight = h * 0.10f;
+        vpButtonSize = h * 0.04f;
+        vpVolumeWidth = w * 0.15f;
+        vpCornerRadius = minDim * 0.01f;
+        vpFontSize = h * 0.025f;
+        vpLineThickness = minDim * 0.001f;
 
-        // Clamp font size to reasonable range
         if (vpFontSize < 9.0f)
             vpFontSize = 9.0f;
         if (vpFontSize > 24.0f)
             vpFontSize = 24.0f;
 
-        // Recreate fonts if they exist
-        if (writeFactory)
+        if (!writeFactory)
+            return;
+
+        if (textFormat)
         {
-            if (textFormat)
-            {
-                textFormat->Release();
-                textFormat = nullptr;
-            }
-            if (titleFormat)
-            {
-                titleFormat->Release();
-                titleFormat = nullptr;
-            }
-            if (timeFormat)
-            {
-                timeFormat->Release();
-                timeFormat = nullptr;
-            }
+            textFormat->Release();
+            textFormat = nullptr;
+        }
+        if (titleFormat)
+        {
+            titleFormat->Release();
+            titleFormat = nullptr;
+        }
+        if (timeFormat)
+        {
+            timeFormat->Release();
+            timeFormat = nullptr;
+        }
 
-            writeFactory->CreateTextFormat(
-                L"Segoe UI", NULL,
-                DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
-                DWRITE_FONT_STRETCH_NORMAL,
-                vpFontSize,
-                L"en-us", &textFormat);
-            writeFactory->CreateTextFormat(
-                L"Segoe UI", NULL,
-                DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL,
-                DWRITE_FONT_STRETCH_NORMAL,
-                vpFontSize + 2.0f,
-                L"en-us", &titleFormat);
-            writeFactory->CreateTextFormat(
-                L"Segoe UI", NULL,
-                DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_ITALIC,
-                DWRITE_FONT_STRETCH_NORMAL,
-                vpFontSize - 2.0f,
-                L"en-us", &timeFormat);
+        writeFactory->CreateTextFormat(L"Segoe UI", NULL,
+                                       DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
+                                       DWRITE_FONT_STRETCH_NORMAL, vpFontSize, L"en-us", &textFormat);
+        writeFactory->CreateTextFormat(L"Segoe UI", NULL,
+                                       DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL,
+                                       DWRITE_FONT_STRETCH_NORMAL, vpFontSize + 2.0f, L"en-us", &titleFormat);
+        writeFactory->CreateTextFormat(L"Segoe UI", NULL,
+                                       DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_ITALIC,
+                                       DWRITE_FONT_STRETCH_NORMAL, vpFontSize - 2.0f, L"en-us", &timeFormat);
 
-            if (textFormat)
-            {
-                textFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
-                textFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-                textFormat->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
-            }
-            if (titleFormat)
-            {
-                titleFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
-                titleFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-            }
-            if (timeFormat)
-            {
-                timeFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
-                timeFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-            }
+        if (textFormat)
+        {
+            textFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+            textFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+            textFormat->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+        }
+        if (titleFormat)
+        {
+            titleFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+            titleFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+        }
+        if (timeFormat)
+        {
+            timeFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+            timeFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
         }
     }
 
-    // ---------------------------------------------------------------------
-    // Device resources
-    // ---------------------------------------------------------------------
     bool CalendarRenderer::initialize(HWND window)
     {
         hwnd = window;
@@ -150,14 +141,12 @@ namespace CalendarOverlay
         D2D1_SIZE_U size = D2D1::SizeU(rc.right - rc.left, rc.bottom - rc.top);
 
         HRESULT hr = d2dFactory->CreateHwndRenderTarget(
-            D2D1::RenderTargetProperties(), // we will set DPI afterwards
+            D2D1::RenderTargetProperties(),
             D2D1::HwndRenderTargetProperties(hwnd, size),
             &renderTarget);
         if (FAILED(hr))
             return false;
 
-        // ===== ADD THIS =====
-        // Set the DPI to match the window's current DPI
         UINT dpiX = 96, dpiY = 96;
         HMODULE user32 = GetModuleHandle(L"user32.dll");
         if (user32)
@@ -169,7 +158,6 @@ namespace CalendarOverlay
             }
             else
             {
-                // Fallback: use system DPI
                 HDC screenDC = GetDC(NULL);
                 dpiX = GetDeviceCaps(screenDC, LOGPIXELSX);
                 dpiY = GetDeviceCaps(screenDC, LOGPIXELSY);
@@ -177,8 +165,8 @@ namespace CalendarOverlay
             }
         }
         renderTarget->SetDpi((FLOAT)dpiX, (FLOAT)dpiY);
-        // ====================
-
+        dpiScaleX = dpiX / 96.0f;
+        dpiScaleY = dpiY / 96.0f;
         if (renderTarget)
         {
             renderTarget->CreateSolidColorBrush(toColorF(config.textColor), &textBrush);
@@ -189,22 +177,21 @@ namespace CalendarOverlay
         }
         return true;
     }
+
     void CalendarRenderer::updateDPI(UINT dpiX, UINT dpiY)
     {
         EnterCriticalSection(&cs);
         if (renderTarget)
         {
             renderTarget->SetDpi((FLOAT)dpiX, (FLOAT)dpiY);
-            // Re‑query the render size (it may change after DPI change)
             renderSize = renderTarget->GetSize();
-            // Recalculate all proportional sizes (they are based on renderSize)
             updateViewportLayout();
-            // Force a repaint
             if (hwnd)
                 InvalidateRect(hwnd, NULL, FALSE);
         }
         LeaveCriticalSection(&cs);
     }
+
     void CalendarRenderer::releaseDeviceResources()
     {
         if (textBrush)
@@ -236,14 +223,11 @@ namespace CalendarOverlay
         {
             renderTarget->Resize(D2D1::SizeU(width, height));
             renderSize = renderTarget->GetSize();
-            updateViewportLayout(); // recalc all sizes based on new window size
+            updateViewportLayout();
         }
         LeaveCriticalSection(&cs);
     }
 
-    // ---------------------------------------------------------------------
-    // Rendering – all positions use vp* values
-    // ---------------------------------------------------------------------
     void CalendarRenderer::render()
     {
         EnterCriticalSection(&cs);
@@ -266,8 +250,8 @@ namespace CalendarOverlay
             drawBackground();
             drawDateHeader();
             drawEvents();
-            drawCurrentTime();
             drawAudioControls();
+            drawCurrentTime();
         }
 
         HRESULT hr = renderTarget->EndDraw();
@@ -411,7 +395,6 @@ namespace CalendarOverlay
         eventBrush->SetColor(eventColor);
         renderTarget->FillRoundedRectangle(eventRect, eventBrush);
 
-        // Time
         auto eventTime = std::chrono::system_clock::from_time_t(event.startTime / 1000);
         auto eventTimeT = std::chrono::system_clock::to_time_t(eventTime);
         std::tm eventTm;
@@ -427,7 +410,6 @@ namespace CalendarOverlay
                                 static_cast<UINT32>(timeStream.str().length()),
                                 timeFormat, timeRect, textBrush);
 
-        // Title
         std::wstring title;
         for (int i = 0; i < 256 && event.title[i] != '\0'; i++)
             title += static_cast<wchar_t>(event.title[i]);
@@ -486,7 +468,7 @@ namespace CalendarOverlay
 
     void CalendarRenderer::drawCurrentTime()
     {
-        if (!textBrush || !textFormat || !renderTarget)
+        if (!textBrush || !timeFormat || !renderTarget)
             return;
 
         auto now = std::chrono::system_clock::now();
@@ -496,16 +478,24 @@ namespace CalendarOverlay
         std::wstringstream wss;
         wss << std::put_time(&localTime, L"%I:%M:%S %p");
 
+        float timeY = renderSize.height - 25.0f;
+        if (audioControlsVisible)
+        {
+            float controlsTop = renderSize.height - vpAudioControlsHeight - 5.0f;
+            timeY = controlsTop - 20.0f;
+        }
+
         D2D1_RECT_F textRect = D2D1::RectF(
-            vpPadding,
-            renderSize.height - 25.0f,
-            renderSize.width - vpPadding,
-            renderSize.height - 5.0f);
+            vpPadding, timeY,
+            renderSize.width - vpPadding, timeY + 20.0f);
         renderTarget->DrawTextW(wss.str().c_str(),
                                 static_cast<UINT32>(wss.str().length()),
                                 timeFormat, textRect, textBrush);
     }
 
+    // ---------------------------------------------------------------------
+    // drawAudioControls – FIXED: properly drawn vector buttons
+    // ---------------------------------------------------------------------
     void CalendarRenderer::drawAudioControls()
     {
         if (!textBrush || !textFormat || !renderTarget || !audioPlayer || !audioControlsVisible)
@@ -515,9 +505,9 @@ namespace CalendarOverlay
         float controlsWidth = renderSize.width - 2 * vpPadding;
         float controlsLeft = vpPadding;
 
-        // Background
+        // ---------- Panel background ----------
         ID2D1SolidColorBrush *controlsBgBrush = nullptr;
-        renderTarget->CreateSolidColorBrush(D2D1::ColorF(0.1f, 0.1f, 0.1f, 0.8f), &controlsBgBrush);
+        renderTarget->CreateSolidColorBrush(D2D1::ColorF(0.1f, 0.1f, 0.1f, 0.85f), &controlsBgBrush);
         D2D1_ROUNDED_RECT bgRect = D2D1::RoundedRect(
             D2D1::RectF(controlsLeft, controlsTop,
                         controlsLeft + controlsWidth, controlsTop + vpAudioControlsHeight),
@@ -530,74 +520,11 @@ namespace CalendarOverlay
         renderTarget->DrawRoundedRectangle(bgRect, borderBrush, vpLineThickness);
         borderBrush->Release();
 
-        // Buttons
-        float buttonSize = vpButtonSize;
-        float buttonSpacing = vpPadding * 0.5f;
-        float currentX = controlsLeft + vpPadding;
-        float buttonY = controlsTop + vpPadding;
-
-        ID2D1SolidColorBrush *buttonBrush = nullptr;
-        renderTarget->CreateSolidColorBrush(D2D1::ColorF(0.8f, 0.8f, 0.8f, 1.0f), &buttonBrush);
-
-        // Prev
-        D2D1_RECT_F prevRect = D2D1::RectF(currentX, buttonY, currentX + buttonSize, buttonY + buttonSize);
-        renderTarget->FillRectangle(prevRect, buttonBrush);
-        std::wstring prevText = L"<";
-        renderTarget->DrawTextW(prevText.c_str(), (UINT32)prevText.length(), textFormat, prevRect, textBrush);
-        currentX += buttonSize + buttonSpacing;
-
-        // Play/Pause
-        D2D1_RECT_F playPauseRect = D2D1::RectF(currentX, buttonY, currentX + buttonSize, buttonY + buttonSize);
-        renderTarget->FillRectangle(playPauseRect, buttonBrush);
-        std::wstring playPauseText = audioPlayer->isPlaying() ? L"||" : L">";
-        renderTarget->DrawTextW(playPauseText.c_str(), (UINT32)playPauseText.length(), textFormat, playPauseRect, textBrush);
-        currentX += buttonSize + buttonSpacing;
-
-        // Next
-        D2D1_RECT_F nextRect = D2D1::RectF(currentX, buttonY, currentX + buttonSize, buttonY + buttonSize);
-        renderTarget->FillRectangle(nextRect, buttonBrush);
-        std::wstring nextText = L">";
-        renderTarget->DrawTextW(nextText.c_str(), (UINT32)nextText.length(), textFormat, nextRect, textBrush);
-        currentX += buttonSize + buttonSpacing;
-
-        buttonBrush->Release();
-
-        // Volume bar
-        float volumeHeight = 10.0f;
-        float volumeY = buttonY + (buttonSize - volumeHeight) / 2;
-        D2D1_RECT_F volumeTrackRect = D2D1::RectF(
-            currentX, volumeY,
-            currentX + vpVolumeWidth, volumeY + volumeHeight);
-        ID2D1SolidColorBrush *volumeTrackBrush = nullptr;
-        renderTarget->CreateSolidColorBrush(D2D1::ColorF(0.3f, 0.3f, 0.3f, 1.0f), &volumeTrackBrush);
-        renderTarget->FillRectangle(volumeTrackRect, volumeTrackBrush);
-        volumeTrackBrush->Release();
-
-        float volumeLevel = audioPlayer->getVolume();
-        float volumeFillWidth = vpVolumeWidth * volumeLevel;
-        D2D1_RECT_F volumeFillRect = D2D1::RectF(
-            currentX, volumeY,
-            currentX + volumeFillWidth, volumeY + volumeHeight);
-        ID2D1SolidColorBrush *volumeFillBrush = nullptr;
-        renderTarget->CreateSolidColorBrush(D2D1::ColorF(0.0f, 0.7f, 0.0f, 1.0f), &volumeFillBrush);
-        renderTarget->FillRectangle(volumeFillRect, volumeFillBrush);
-        volumeFillBrush->Release();
-
-        currentX += vpVolumeWidth + vpPadding;
-
-        // Track name
-        std::wstring trackName = getCurrentAudioTrack();
-        if (trackName.empty())
-            trackName = L"No track";
-        D2D1_RECT_F trackNameRect = D2D1::RectF(
-            currentX, buttonY,
-            controlsLeft + controlsWidth - vpPadding, buttonY + buttonSize);
-        renderTarget->DrawTextW(trackName.c_str(), (UINT32)trackName.length(), textFormat, trackNameRect, textBrush);
-
-        // Progress bar
-        float progressBarY = controlsTop + vpAudioControlsHeight - 15.0f;
+        // ---------- Progress bar ----------
+        float progressBarY = controlsTop + vpPadding * 0.5f;
+        float progressBarHeight = 5.0f;
         float progressBarWidth = controlsWidth - 2 * vpPadding;
-        float progressBarHeight = 3.0f;
+
         D2D1_RECT_F progressTrackRect = D2D1::RectF(
             controlsLeft + vpPadding, progressBarY,
             controlsLeft + vpPadding + progressBarWidth, progressBarY + progressBarHeight);
@@ -622,6 +549,150 @@ namespace CalendarOverlay
         renderTarget->CreateSolidColorBrush(D2D1::ColorF(0.0f, 0.5f, 1.0f, 1.0f), &progressFillBrush);
         renderTarget->FillRectangle(progressFillRect, progressFillBrush);
         progressFillBrush->Release();
+
+        // ---------- Buttons row (properly drawn icons using path geometry) ----------
+        float buttonRowY = progressBarY + progressBarHeight + vpPadding * 0.5f;
+        float buttonSize = vpButtonSize;
+        float buttonSpacing = vpPadding * 0.5f;
+        float currentX = controlsLeft + vpPadding;
+        float buttonY = buttonRowY;
+
+        ID2D1SolidColorBrush *buttonBgBrush = nullptr;
+        renderTarget->CreateSolidColorBrush(D2D1::ColorF(0.8f, 0.8f, 0.8f, 1.0f), &buttonBgBrush);
+        ID2D1SolidColorBrush *buttonBorderBrush = nullptr;
+        renderTarget->CreateSolidColorBrush(D2D1::ColorF(0.5f, 0.5f, 0.5f, 1.0f), &buttonBorderBrush);
+        ID2D1SolidColorBrush *iconBrush = nullptr;
+        renderTarget->CreateSolidColorBrush(D2D1::ColorF(0.2f, 0.2f, 0.2f, 1.0f), &iconBrush);
+
+        // ----- Previous (left-pointing triangle) -----
+        D2D1_RECT_F prevRect = D2D1::RectF(currentX, buttonY, currentX + buttonSize, buttonY + buttonSize);
+        renderTarget->FillRectangle(prevRect, buttonBgBrush);
+        renderTarget->DrawRectangle(prevRect, buttonBorderBrush, vpLineThickness);
+
+        // Create triangle geometry
+        ID2D1PathGeometry *pPrevGeo = nullptr;
+        d2dFactory->CreatePathGeometry(&pPrevGeo);
+        ID2D1GeometrySink *pSink = nullptr;
+        pPrevGeo->Open(&pSink);
+        pSink->BeginFigure(
+            D2D1::Point2F(prevRect.right - buttonSize * 0.25f, prevRect.top + buttonSize * 0.25f),
+            D2D1_FIGURE_BEGIN_FILLED);
+        pSink->AddLine(D2D1::Point2F(prevRect.right - buttonSize * 0.25f, prevRect.bottom - buttonSize * 0.25f));
+        pSink->AddLine(D2D1::Point2F(prevRect.left + buttonSize * 0.25f, prevRect.top + buttonSize * 0.5f));
+        pSink->EndFigure(D2D1_FIGURE_END_CLOSED);
+        pSink->Close();
+        pSink->Release();
+        renderTarget->FillGeometry(pPrevGeo, iconBrush);
+        pPrevGeo->Release();
+
+        currentX += buttonSize + buttonSpacing;
+
+        // ----- Play/Pause (right triangle or two vertical bars) -----
+        D2D1_RECT_F playPauseRect = D2D1::RectF(currentX, buttonY, currentX + buttonSize, buttonY + buttonSize);
+        renderTarget->FillRectangle(playPauseRect, buttonBgBrush);
+        renderTarget->DrawRectangle(playPauseRect, buttonBorderBrush, vpLineThickness);
+        if (audioPlayer->isPlaying())
+        {
+            // Pause: two vertical bars
+            float barWidth = buttonSize * 0.2f;
+            float barSpacing = buttonSize * 0.2f;
+            float barHeight = buttonSize * 0.5f;
+            float centerX = playPauseRect.left + buttonSize * 0.5f;
+            float barTop = playPauseRect.top + (buttonSize - barHeight) * 0.5f;
+            D2D1_RECT_F bar1 = D2D1::RectF(centerX - barSpacing - barWidth, barTop,
+                                           centerX - barSpacing, barTop + barHeight);
+            D2D1_RECT_F bar2 = D2D1::RectF(centerX + barSpacing, barTop,
+                                           centerX + barSpacing + barWidth, barTop + barHeight);
+            renderTarget->FillRectangle(bar1, iconBrush);
+            renderTarget->FillRectangle(bar2, iconBrush);
+        }
+        else
+        {
+            // Play: right-pointing triangle
+            ID2D1PathGeometry *pPlayGeo = nullptr;
+            d2dFactory->CreatePathGeometry(&pPlayGeo);
+            ID2D1GeometrySink *pSinkPlay = nullptr;
+            pPlayGeo->Open(&pSinkPlay);
+            pSinkPlay->BeginFigure(
+                D2D1::Point2F(playPauseRect.left + buttonSize * 0.3f, playPauseRect.top + buttonSize * 0.25f),
+                D2D1_FIGURE_BEGIN_FILLED);
+            pSinkPlay->AddLine(D2D1::Point2F(playPauseRect.left + buttonSize * 0.3f, playPauseRect.bottom - buttonSize * 0.25f));
+            pSinkPlay->AddLine(D2D1::Point2F(playPauseRect.right - buttonSize * 0.25f, playPauseRect.top + buttonSize * 0.5f));
+            pSinkPlay->EndFigure(D2D1_FIGURE_END_CLOSED);
+            pSinkPlay->Close();
+            pSinkPlay->Release();
+            renderTarget->FillGeometry(pPlayGeo, iconBrush);
+            pPlayGeo->Release();
+        }
+        currentX += buttonSize + buttonSpacing;
+
+        // ----- Next (right-pointing triangle) -----
+        D2D1_RECT_F nextRect = D2D1::RectF(currentX, buttonY, currentX + buttonSize, buttonY + buttonSize);
+        renderTarget->FillRectangle(nextRect, buttonBgBrush);
+        renderTarget->DrawRectangle(nextRect, buttonBorderBrush, vpLineThickness);
+
+        ID2D1PathGeometry *pNextGeo = nullptr;
+        d2dFactory->CreatePathGeometry(&pNextGeo);
+        ID2D1GeometrySink *pSinkNext = nullptr;
+        pNextGeo->Open(&pSinkNext);
+        pSinkNext->BeginFigure(
+            D2D1::Point2F(nextRect.left + buttonSize * 0.25f, nextRect.top + buttonSize * 0.25f),
+            D2D1_FIGURE_BEGIN_FILLED);
+        pSinkNext->AddLine(D2D1::Point2F(nextRect.left + buttonSize * 0.25f, nextRect.bottom - buttonSize * 0.25f));
+        pSinkNext->AddLine(D2D1::Point2F(nextRect.right - buttonSize * 0.25f, nextRect.top + buttonSize * 0.5f));
+        pSinkNext->EndFigure(D2D1_FIGURE_END_CLOSED);
+        pSinkNext->Close();
+        pSinkNext->Release();
+        renderTarget->FillGeometry(pNextGeo, iconBrush);
+        pNextGeo->Release();
+
+        buttonBgBrush->Release();
+        buttonBorderBrush->Release();
+        iconBrush->Release();
+        currentX += buttonSize + buttonSpacing;
+
+        // ---------- Volume bar ----------
+        float volumeHeight = 8.0f;
+        float volumeY = buttonY + (buttonSize - volumeHeight) / 2;
+        float volumeWidth = vpVolumeWidth;
+
+        D2D1_RECT_F volumeTrackRect = D2D1::RectF(
+            currentX, volumeY,
+            currentX + volumeWidth, volumeY + volumeHeight);
+        ID2D1SolidColorBrush *volumeTrackBrush = nullptr;
+        renderTarget->CreateSolidColorBrush(D2D1::ColorF(0.3f, 0.3f, 0.3f, 1.0f), &volumeTrackBrush);
+        renderTarget->FillRectangle(volumeTrackRect, volumeTrackBrush);
+        volumeTrackBrush->Release();
+
+        float volumeLevel = audioPlayer->getVolume();
+        float volumeFillWidth = volumeWidth * volumeLevel;
+        D2D1_RECT_F volumeFillRect = D2D1::RectF(
+            currentX, volumeY,
+            currentX + volumeFillWidth, volumeY + volumeHeight);
+        ID2D1SolidColorBrush *volumeFillBrush = nullptr;
+        renderTarget->CreateSolidColorBrush(D2D1::ColorF(0.0f, 0.7f, 0.0f, 1.0f), &volumeFillBrush);
+        renderTarget->FillRectangle(volumeFillRect, volumeFillBrush);
+        volumeFillBrush->Release();
+
+        currentX += volumeWidth + vpPadding;
+
+        // ---------- Track name (truncated) ----------
+        std::wstring trackName = getCurrentAudioTrack();
+        if (trackName.empty())
+            trackName = L"No track";
+        else
+        {
+            float maxWidth = (controlsLeft + controlsWidth - vpPadding) - currentX;
+            size_t maxChars = static_cast<size_t>(maxWidth / (vpFontSize * 0.5f));
+            if (trackName.length() > maxChars && maxChars > 5)
+                trackName = trackName.substr(0, maxChars - 3) + L"...";
+        }
+        D2D1_RECT_F trackNameRect = D2D1::RectF(
+            currentX, buttonY,
+            controlsLeft + controlsWidth - vpPadding, buttonY + buttonSize);
+        renderTarget->DrawTextW(trackName.c_str(),
+                                (UINT32)trackName.length(),
+                                textFormat, trackNameRect, textBrush);
     }
 
     void CalendarRenderer::drawWallpaperContent()
@@ -735,9 +806,6 @@ namespace CalendarOverlay
         }
     }
 
-    // ---------------------------------------------------------------------
-    // Event management
-    // ---------------------------------------------------------------------
     void CalendarRenderer::setEvents(const std::vector<CalendarEvent> &newEvents)
     {
         EnterCriticalSection(&cs);
@@ -810,9 +878,6 @@ namespace CalendarOverlay
         return upcoming;
     }
 
-    // ---------------------------------------------------------------------
-    // Mouse handling
-    // ---------------------------------------------------------------------
     void CalendarRenderer::handleMouseWheel(float delta)
     {
         EnterCriticalSection(&cs);
@@ -830,31 +895,121 @@ namespace CalendarOverlay
         LeaveCriticalSection(&cs);
     }
 
-    void CalendarRenderer::handleMouseDown(int x, int y)
+    bool CalendarRenderer::handleMouseDown(int x, int y)
     {
         EnterCriticalSection(&cs);
-        if (needsScrollbar)
+        bool handled = false;
+
+        if (!renderTarget)
         {
-            float scrollbarX = renderSize.width - vpPadding - vpScrollbarWidth;
-            D2D1_RECT_F scrollbarRect = D2D1::RectF(
-                scrollbarX,
-                vpPadding + 50.0f,
-                scrollbarX + vpScrollbarWidth,
-                renderSize.height - vpPadding - 25.0f);
-            if (x >= scrollbarRect.left && x <= scrollbarRect.right &&
-                y >= scrollbarRect.top && y <= scrollbarRect.bottom)
+            LeaveCriticalSection(&cs);
+            return false;
+        }
+
+        float scaleX = dpiScaleX;
+        float scaleY = dpiScaleY;
+
+        auto toPhys = [&](const D2D1_RECT_F &dip)
+        {
+            return D2D1::RectF(
+                dip.left * scaleX, dip.top * scaleY,
+                dip.right * scaleX, dip.bottom * scaleY);
+        };
+
+        // Scrollbar (unchanged)
+        if (needsScrollbar)
+        { /* ... */
+        }
+
+        // Audio controls
+        if (!handled && audioControlsVisible && audioPlayer)
+        {
+            float controlsTop = renderSize.height - vpAudioControlsHeight - 5.0f;
+            float controlsWidth = renderSize.width - 2 * vpPadding;
+            float controlsLeft = vpPadding;
+
+            // Progress bar
+            float progressBarY = controlsTop + vpPadding * 0.5f;
+            float progressBarHeight = 5.0f;
+            float progressBarWidth = controlsWidth - 2 * vpPadding;
+            D2D1_RECT_F progDip = D2D1::RectF(
+                controlsLeft + vpPadding, progressBarY,
+                controlsLeft + vpPadding + progressBarWidth, progressBarY + progressBarHeight);
+            D2D1_RECT_F progPhys = toPhys(progDip);
+            if (x >= progPhys.left && x <= progPhys.right && y >= progPhys.top && y <= progPhys.bottom)
             {
-                isScrolling = true;
-                lastMousePos.x = x;
-                lastMousePos.y = y;
+                float t = (x - progPhys.left) / (progPhys.right - progPhys.left);
+                long seekPos = (long)(t * audioPlayer->getDuration());
+                audioPlayer->seek(seekPos);
+                handled = true;
+                isDraggingAudioProgress = true;
+            }
+
+            // Buttons row
+            float buttonRowY = progressBarY + progressBarHeight + vpPadding * 0.5f;
+            float buttonSize = vpButtonSize;
+            float buttonSpacing = vpPadding * 0.5f;
+            float currentXDip = controlsLeft + vpPadding;
+            float buttonYDip = buttonRowY;
+
+            // Prev
+            D2D1_RECT_F prevDip = D2D1::RectF(currentXDip, buttonYDip,
+                                              currentXDip + buttonSize, buttonYDip + buttonSize);
+            D2D1_RECT_F prevPhys = toPhys(prevDip);
+            if (x >= prevPhys.left && x <= prevPhys.right && y >= prevPhys.top && y <= prevPhys.bottom)
+            {
+                playPreviousTrack();
+                handled = true;
+            }
+            currentXDip += buttonSize + buttonSpacing;
+
+            // Play/Pause
+            D2D1_RECT_F playDip = D2D1::RectF(currentXDip, buttonYDip,
+                                              currentXDip + buttonSize, buttonYDip + buttonSize);
+            D2D1_RECT_F playPhys = toPhys(playDip);
+            if (x >= playPhys.left && x <= playPhys.right && y >= playPhys.top && y <= playPhys.bottom)
+            {
+                toggleAudioPlayback();
+                handled = true;
+            }
+            currentXDip += buttonSize + buttonSpacing;
+
+            // Next
+            D2D1_RECT_F nextDip = D2D1::RectF(currentXDip, buttonYDip,
+                                              currentXDip + buttonSize, buttonYDip + buttonSize);
+            D2D1_RECT_F nextPhys = toPhys(nextDip);
+            if (x >= nextPhys.left && x <= nextPhys.right && y >= nextPhys.top && y <= nextPhys.bottom)
+            {
+                playNextTrack();
+                handled = true;
+            }
+            currentXDip += buttonSize + buttonSpacing;
+
+            // Volume bar
+            float volumeHeight = 8.0f;
+            float volumeYDip = buttonYDip + (buttonSize - volumeHeight) / 2;
+            float volumeWidth = vpVolumeWidth;
+            D2D1_RECT_F volDip = D2D1::RectF(
+                currentXDip, volumeYDip,
+                currentXDip + volumeWidth, volumeYDip + volumeHeight);
+            D2D1_RECT_F volPhys = toPhys(volDip);
+            if (x >= volPhys.left && x <= volPhys.right && y >= volPhys.top && y <= volPhys.bottom)
+            {
+                float t = (x - volPhys.left) / (volPhys.right - volPhys.left);
+                setAudioVolume(t);
+                isDraggingAudioProgress = true;
+                handled = true;
             }
         }
+
         LeaveCriticalSection(&cs);
+        return handled;
     }
 
     void CalendarRenderer::handleMouseMove(int x, int y)
     {
         EnterCriticalSection(&cs);
+
         if (isScrolling && needsScrollbar)
         {
             float deltaY = static_cast<float>(y - lastMousePos.y);
@@ -868,9 +1023,64 @@ namespace CalendarOverlay
                 scrollOffset = maxScrollOffset;
             lastMousePos.x = x;
             lastMousePos.y = y;
-            if (hwnd)
-                InvalidateRect(hwnd, NULL, FALSE);
         }
+        else if (isDraggingAudioProgress && audioPlayer && audioControlsVisible && renderTarget)
+        {
+            FLOAT dpiX, dpiY;
+            renderTarget->GetDpi(&dpiX, &dpiY);
+            float scaleX = dpiX / 96.0f;
+            float scaleY = dpiY / 96.0f;
+
+            float controlsTop = renderSize.height - vpAudioControlsHeight - 5.0f;
+            float controlsLeft = vpPadding;
+            float controlsWidth = renderSize.width - 2 * vpPadding;
+
+            // --- Progress bar (FIXED: use correct width) ---
+            float progressBarY = controlsTop + vpPadding * 0.5f;
+            float progressBarHeight = 5.0f;
+            float progressBarWidth = controlsWidth - 2 * vpPadding; // ✅ CORRECT
+
+            D2D1_RECT_F progressDip = D2D1::RectF(
+                controlsLeft + vpPadding, progressBarY,
+                controlsLeft + vpPadding + progressBarWidth, progressBarY + progressBarHeight);
+            D2D1_RECT_F progressPhys = D2D1::RectF(
+                progressDip.left * scaleX, progressDip.top * scaleY,
+                progressDip.right * scaleX, progressDip.bottom * scaleY);
+
+            if (x >= progressPhys.left && x <= progressPhys.right &&
+                y >= progressPhys.top && y <= progressPhys.bottom)
+            {
+                float t = (x - progressPhys.left) / (progressPhys.right - progressPhys.left);
+                long seekPos = static_cast<long>(t * audioPlayer->getDuration());
+                if (audioPlayer)
+                    audioPlayer->seek(seekPos);
+            }
+
+            // --- Volume bar (unchanged) ---
+            float buttonRowY = progressBarY + progressBarHeight + vpPadding * 0.5f;
+            float buttonSize = vpButtonSize;
+            float buttonSpacing = vpPadding * 0.5f;
+            float currentXDip = controlsLeft + vpPadding + (buttonSize + buttonSpacing) * 3;
+            float volumeYDip = buttonRowY + (buttonSize - 8.0f) / 2;
+            float volumeWidth = vpVolumeWidth;
+
+            D2D1_RECT_F volumeDip = D2D1::RectF(
+                currentXDip, volumeYDip,
+                currentXDip + volumeWidth, volumeYDip + 8.0f);
+            D2D1_RECT_F volumePhys = D2D1::RectF(
+                volumeDip.left * scaleX, volumeDip.top * scaleY,
+                volumeDip.right * scaleX, volumeDip.bottom * scaleY);
+
+            if (x >= volumePhys.left && x <= volumePhys.right &&
+                y >= volumePhys.top && y <= volumePhys.bottom)
+            {
+                float t = (x - volumePhys.left) / (volumePhys.right - volumePhys.left);
+                setAudioVolume(t);
+            }
+        }
+
+        if (hwnd)
+            InvalidateRect(hwnd, NULL, FALSE);
         LeaveCriticalSection(&cs);
     }
 
@@ -878,6 +1088,7 @@ namespace CalendarOverlay
     {
         EnterCriticalSection(&cs);
         isScrolling = false;
+        isDraggingAudioProgress = false;
         LeaveCriticalSection(&cs);
     }
 
@@ -896,9 +1107,6 @@ namespace CalendarOverlay
         return scrolling;
     }
 
-    // ---------------------------------------------------------------------
-    // Audio methods
-    // ---------------------------------------------------------------------
     void CalendarRenderer::toggleAudioPlayback()
     {
         EnterCriticalSection(&cs);

@@ -40,7 +40,6 @@ namespace CalendarOverlay
             }
             else
             {
-                // Fallback for older Windows 10 / Windows 8.1
                 SetProcessDPIAware();
             }
             FreeLibrary(user32);
@@ -49,7 +48,7 @@ namespace CalendarOverlay
         {
             SetProcessDPIAware();
         }
-        // Command line handling
+
         int argc;
         LPWSTR *argv = CommandLineToArgvW(GetCommandLineW(), &argc);
         if (argv)
@@ -73,19 +72,14 @@ namespace CalendarOverlay
             LocalFree(argv);
         }
 
-        // -----------------------------------------------------------------
-        // WINDOW SIZE = PERCENTAGE OF SCREEN (WORK AREA)
-        // -----------------------------------------------------------------
         RECT workArea;
         SystemParametersInfo(SPI_GETWORKAREA, 0, &workArea, 0);
         int screenWidth = workArea.right - workArea.left;
         int screenHeight = workArea.bottom - workArea.top;
 
-        // Base size: 20% width, 30% height – adjust these percentages to taste
-        int baseWidth = screenWidth * 20 / 100;
+        int baseWidth = screenWidth * 22 / 100;
         int baseHeight = screenHeight * 30 / 100;
 
-        // Clamp to reasonable min/max
         const int MIN_WIDTH = 300;
         const int MIN_HEIGHT = 400;
         const int MAX_WIDTH = screenWidth / 2;
@@ -97,11 +91,9 @@ namespace CalendarOverlay
         windowWidth = baseWidth;
         windowHeight = baseHeight;
 
-        // Default position: top-right corner
         windowX = workArea.right - windowWidth - 10;
         windowY = workArea.top + 10;
 
-        // Override with saved config if present
         if (config.positionX != 100 || config.positionY != 100)
         {
             windowX = config.positionX;
@@ -111,7 +103,6 @@ namespace CalendarOverlay
         {
             windowWidth = config.width;
             windowHeight = config.height;
-            // Re-clamp to screen limits
             windowWidth = std::max(MIN_WIDTH, std::min(windowWidth, MAX_WIDTH));
             windowHeight = std::max(MIN_HEIGHT, std::min(windowHeight, MAX_HEIGHT));
         }
@@ -151,7 +142,7 @@ namespace CalendarOverlay
         if (clickThrough)
             exStyle |= WS_EX_TRANSPARENT;
 
-        DWORD style = WS_POPUP | WS_THICKFRAME; // resizable
+        DWORD style = WS_POPUP | WS_THICKFRAME;
 
         hwnd = CreateWindowExW(
             exStyle,
@@ -166,7 +157,6 @@ namespace CalendarOverlay
 
         SetLayeredWindowAttributes(hwnd, 0, alpha, LWA_ALPHA);
 
-        // Dark mode (Windows 10/11)
         HMODULE dwmapi = LoadLibrary(L"dwmapi.dll");
         if (dwmapi)
         {
@@ -321,6 +311,10 @@ namespace CalendarOverlay
             case WM_TIMER:
                 window->onTimer();
                 return 0;
+            case WM_APP + 2:
+                if (window->renderer)
+                    window->renderer->playNextTrack();
+                return 0;
             case WM_MOUSEMOVE:
                 window->onMouseMove(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
                 return 0;
@@ -363,14 +357,12 @@ namespace CalendarOverlay
                 return 0;
             case WM_DPICHANGED:
             {
-                // New DPI is in wParam (HIWORD = Y, LOWORD = X)
                 UINT dpiX = LOWORD(wParam);
                 UINT dpiY = HIWORD(wParam);
                 if (window->renderer)
                 {
-                    window->renderer->updateDPI(dpiX, dpiY); // we'll add this method
+                    window->renderer->updateDPI(dpiX, dpiY);
                 }
-                // Suggested rectangle to preserve logical size
                 RECT *suggestedRect = (RECT *)lParam;
                 SetWindowPos(hwnd, NULL,
                              suggestedRect->left,
@@ -442,13 +434,17 @@ namespace CalendarOverlay
         }
     }
 
+    // ---------------------------------------------------------------------
+    // onMouseDown – FIXED: uses bool return from renderer->handleMouseDown()
+    // ---------------------------------------------------------------------
     void DesktopWindow::onMouseDown(int x, int y)
     {
         bool ctrlDown = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+        bool clickHandled = false;
+
         if (renderer)
-        {
-            renderer->handleMouseDown(x, y);
-        }
+            clickHandled = renderer->handleMouseDown(x, y);
+
         if (ctrlDown)
         {
             dragging = true;
@@ -458,11 +454,12 @@ namespace CalendarOverlay
             dragStartY = cursorPos.y;
             return;
         }
+
         if (renderer && renderer->isScrollingActive())
-        {
             return;
-        }
-        launchJavaGUI();
+
+        if (!clickHandled)
+            launchJavaGUI();
     }
 
     void DesktopWindow::onMouseUp(int x, int y)
