@@ -4,9 +4,11 @@
 #include <chrono>
 #include <cstring>
 
-namespace CalendarOverlay{
-    #pragma pack(push, 1)
-    struct CalendarEvent{
+namespace CalendarOverlay
+{
+#pragma pack(push, 1)
+    struct CalendarEvent
+    {
         char title[256];
         char description[512];
         int64_t startTime;
@@ -14,19 +16,21 @@ namespace CalendarOverlay{
         uint8_t colorR, colorG, colorB;
         uint8_t priority;
         bool allDay;
-        CalendarEvent(){
+        CalendarEvent()
+        {
             memset(title, 0, sizeof(title));
             memset(description, 0, sizeof(description));
-            startTime=0;
-            endTime=0;
-            colorR=66;
-            colorG=133;
-            colorB=244;
-            priority=5;
-            allDay=false;
+            startTime = 0;
+            endTime = 0;
+            colorR = 66;
+            colorG = 133;
+            colorB = 244;
+            priority = 5;
+            allDay = false;
         }
     };
-    struct OverlayConfig{
+    struct OverlayConfig
+    {
         bool enabled;
         int positionX, positionY;
         int width, height;
@@ -40,23 +44,24 @@ namespace CalendarOverlay{
         bool clickThrough;
         std::string position;
         bool wallpaperMode;
-        OverlayConfig(){
-            enabled=true;
-            positionX=100;
-            positionY=100;
-            width=400;
-            height=600;
-            opacity=0.85f;
-            showPastEvents=false;
-            showAllDay=true;
-            refreshInterval=30;
-            fontSize=14;
-            backgroundColor=0x20000000;
-            textColor=0xFFFFFFFF;
-            clickThrough=false;
-            position="top-right";
-            wallpaperMode=false;
+        OverlayConfig()
+        {
+            enabled = true;
+            positionX = 100;
+            positionY = 100;
+            width = 400;
+            height = 600;
+            opacity = 0.85f;
+            showPastEvents = false;
+            showAllDay = true;
+            refreshInterval = 30;
+            fontSize = 14;
+            backgroundColor = 0x20000000;
+            textColor = 0xFFFFFFFF;
+            clickThrough = false;
+            position = "top-right";
+            wallpaperMode = false;
         }
     };
-    #pragma pack(pop)
+#pragma pack(pop)
 }

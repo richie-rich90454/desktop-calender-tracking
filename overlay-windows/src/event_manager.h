@@ -17,8 +17,10 @@
 #undef __out
 #include <shared/calendar_shared.h>
 #include <json/json.hpp>
-namespace CalendarOverlay{
-    class EventManager{
+namespace CalendarOverlay
+{
+    class EventManager
+    {
     public:
         EventManager();
         ~EventManager();
@@ -28,9 +30,10 @@ namespace CalendarOverlay{
         std::vector<CalendarEvent> getUpcomingEvents(int hours = 24) const;
         bool hasNewData() const;
         int getEventCount() const;
-        bool loadEventsFromFile(const std::string& filepath);
+        bool loadEventsFromFile(const std::string &filepath);
+
     private:
-        bool parseEventsJson(const nlohmann::json& j);
+        bool parseEventsJson(const nlohmann::json &j);
         void checkFileUpdates();
         std::vector<CalendarEvent> events;
         mutable std::mutex eventsMutex;
@@ -41,7 +44,7 @@ namespace CalendarOverlay{
         HANDLE fileWatcherThread;
         static DWORD WINAPI fileWatcherProc(LPVOID param);
         HANDLE sharedMemory;
-        void* sharedMemoryPtr;
+        void *sharedMemoryPtr;
         size_t sharedMemorySize;
         bool setupSharedMemory();
         bool stopWatcher;

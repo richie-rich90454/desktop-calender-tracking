@@ -37,88 +37,90 @@
 #define DWMWCP_ROUND 2
 #endif
 
-namespace CalendarOverlay {
+namespace CalendarOverlay
+{
 
-class DesktopWindow {
-public:
-    DesktopWindow();
-    ~DesktopWindow();
+    class DesktopWindow
+    {
+    public:
+        DesktopWindow();
+        ~DesktopWindow();
 
-    bool create();
-    void show();
-    void hide();
-    void close();
-    void update();
-    void render();
+        bool create();
+        void show();
+        void hide();
+        void close();
+        void update();
+        void render();
 
-    void setPosition(int x, int y);
-    void setSize(int width, int height);
-    void setOpacity(float opacity);
-    void setClickThrough(bool enabled);
+        void setPosition(int x, int y);
+        void setSize(int width, int height);
+        void setOpacity(float opacity);
+        void setClickThrough(bool enabled);
 
-    HWND getHandle() const { return hwnd; }
-    bool isVisible() const { return visible; }
-    int getWidth() const { return windowWidth; }
-    int getHeight() const { return windowHeight; }
+        HWND getHandle() const { return hwnd; }
+        bool isVisible() const { return visible; }
+        int getWidth() const { return windowWidth; }
+        int getHeight() const { return windowHeight; }
 
-    static LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+        static LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-private:
-    bool registerWindowClass();
-    bool createWindowInstance();
-    void adjustWindowStyle();
-    void updateWindowPosition();
+    private:
+        bool registerWindowClass();
+        bool createWindowInstance();
+        void adjustWindowStyle();
+        void updateWindowPosition();
 
-    void onPaint();
-    void onTimer();
-    void onMouseMove(int x, int y);
-    void onMouseDown(int x, int y);
-    void onMouseUp(int x, int y);
-    void onKeyDown(WPARAM key);
-    void onCommand(WPARAM wParam);
+        void onPaint();
+        void onTimer();
+        void onMouseMove(int x, int y);
+        void onMouseDown(int x, int y);
+        void onMouseUp(int x, int y);
+        void onKeyDown(WPARAM key);
+        void onCommand(WPARAM wParam);
 
-    void createTrayIcon();
-    void removeTrayIcon();
-    void showContextMenu(int x, int y);
-    void launchJavaGUI();
+        void createTrayIcon();
+        void removeTrayIcon();
+        void showContextMenu(int x, int y);
+        void launchJavaGUI();
 
-    bool checkIfOnDesktop();
-    void updateWindowVisibilityBasedOnDesktop();
+        bool checkIfOnDesktop();
+        void updateWindowVisibilityBasedOnDesktop();
 
-    void createDoubleBuffer(int width, int height);
-    void cleanupDoubleBuffer();
-    void resizeDoubleBuffer(int width, int height);
+        void createDoubleBuffer(int width, int height);
+        void cleanupDoubleBuffer();
+        void resizeDoubleBuffer(int width, int height);
 
-    HWND hwnd;
-    HINSTANCE hInstance;
-    std::wstring className;
+        HWND hwnd;
+        HINSTANCE hInstance;
+        std::wstring className;
 
-    std::unique_ptr<CalendarRenderer> renderer;
-    std::unique_ptr<EventManager> eventManager;
+        std::unique_ptr<CalendarRenderer> renderer;
+        std::unique_ptr<EventManager> eventManager;
 
-    bool visible;
-    bool dragging;
-    int dragStartX, dragStartY;
+        bool visible;
+        bool dragging;
+        int dragStartX, dragStartY;
 
-    int windowX, windowY;
-    int windowWidth, windowHeight;
-    OverlayConfig config;
+        int windowX, windowY;
+        int windowWidth, windowHeight;
+        OverlayConfig config;
 
-    UINT_PTR renderTimer, updateTimer, desktopCheckTimer;
-    NOTIFYICONDATA trayIconData;
-    bool trayIconVisible;
+        UINT_PTR renderTimer, updateTimer, desktopCheckTimer;
+        NOTIFYICONDATA trayIconData;
+        bool trayIconVisible;
 
-    BYTE alpha;
-    bool clickThrough;
-    bool wallpaperMode;
-    bool fullScreenWallpaper;
+        BYTE alpha;
+        bool clickThrough;
+        bool wallpaperMode;
+        bool fullScreenWallpaper;
 
-    HWND lastActiveWindow;
-    bool isOnDesktop;
+        HWND lastActiveWindow;
+        bool isOnDesktop;
 
-    HDC doubleBufferDC;
-    HBITMAP doubleBufferBitmap;
-    int bufferWidth, bufferHeight;
-};
+        HDC doubleBufferDC;
+        HBITMAP doubleBufferBitmap;
+        int bufferWidth, bufferHeight;
+    };
 
 } // namespace
