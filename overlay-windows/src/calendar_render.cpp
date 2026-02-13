@@ -59,7 +59,6 @@ namespace CalendarOverlay
         vpScrollbarWidth = w * 0.015f;
         vpAudioControlsHeight = h * 0.10f;
         vpButtonSize = h * 0.04f;
-        vpVolumeWidth = w * 0.15f;
         vpCornerRadius = minDim * 0.01f;
         vpFontSize = h * 0.025f;
         vpLineThickness = minDim * 0.001f;
@@ -495,7 +494,7 @@ namespace CalendarOverlay
     }
 
     // ---------------------------------------------------------------------
-    // drawAudioControls – properly drawn vector buttons + "No audio files" message
+    // drawAudioControls – NO volume slider, only progress + buttons + track name
     // ---------------------------------------------------------------------
     void CalendarRenderer::drawAudioControls()
     {
@@ -551,7 +550,7 @@ namespace CalendarOverlay
         renderTarget->FillRectangle(progressFillRect, progressFillBrush);
         progressFillBrush->Release();
 
-        // ---------- Buttons row (vector icons via path geometry) ----------
+        // ---------- Buttons row (vector icons) ----------
         float buttonRowY = progressBarY + progressBarHeight + vpPadding * 0.5f;
         float buttonSize = vpButtonSize;
         float buttonSpacing = vpPadding * 0.5f;
@@ -651,32 +650,7 @@ namespace CalendarOverlay
         iconBrush->Release();
         currentX += buttonSize + buttonSpacing;
 
-        // ---------- Volume bar ----------
-        float volumeHeight = 8.0f;
-        float volumeY = buttonY + (buttonSize - volumeHeight) / 2;
-        float volumeWidth = vpVolumeWidth;
-
-        D2D1_RECT_F volumeTrackRect = D2D1::RectF(
-            currentX, volumeY,
-            currentX + volumeWidth, volumeY + volumeHeight);
-        ID2D1SolidColorBrush *volumeTrackBrush = nullptr;
-        renderTarget->CreateSolidColorBrush(D2D1::ColorF(0.3f, 0.3f, 0.3f, 1.0f), &volumeTrackBrush);
-        renderTarget->FillRectangle(volumeTrackRect, volumeTrackBrush);
-        volumeTrackBrush->Release();
-
-        float volumeLevel = audioPlayer->getVolume();
-        float volumeFillWidth = volumeWidth * volumeLevel;
-        D2D1_RECT_F volumeFillRect = D2D1::RectF(
-            currentX, volumeY,
-            currentX + volumeFillWidth, volumeY + volumeHeight);
-        ID2D1SolidColorBrush *volumeFillBrush = nullptr;
-        renderTarget->CreateSolidColorBrush(D2D1::ColorF(0.0f, 0.7f, 0.0f, 1.0f), &volumeFillBrush);
-        renderTarget->FillRectangle(volumeFillRect, volumeFillBrush);
-        volumeFillBrush->Release();
-
-        currentX += volumeWidth + vpPadding;
-
-        // ---------- Track name / status message ----------
+        // ---------- Track name / status message (no volume bar) ----------
         std::wstring trackName = getCurrentAudioTrack();
         if (trackName.empty())
         {
@@ -695,7 +669,7 @@ namespace CalendarOverlay
         std::wstring errorMsg = audioPlayer->getLastError();
         if (!errorMsg.empty())
         {
-            trackName = L"⚠️ " + errorMsg; // show error in red? you can change brush
+            trackName = L"⚠️ " + errorMsg;
         }
         D2D1_RECT_F trackNameRect = D2D1::RectF(
             currentX, buttonY,
@@ -926,8 +900,6 @@ namespace CalendarOverlay
                 dip.right * scaleX, dip.bottom * scaleY);
         };
 
-        // ----- Scrollbar hit test – (implement if needed; removed empty block) -----
-
         // ----- Audio controls -----
         if (!handled && audioControlsVisible && audioPlayer)
         {
@@ -992,21 +964,7 @@ namespace CalendarOverlay
             }
             currentXDip += buttonSize + buttonSpacing;
 
-            // Volume bar
-            float volumeHeight = 8.0f;
-            float volumeYDip = buttonYDip + (buttonSize - volumeHeight) / 2;
-            float volumeWidth = vpVolumeWidth;
-            D2D1_RECT_F volDip = D2D1::RectF(
-                currentXDip, volumeYDip,
-                currentXDip + volumeWidth, volumeYDip + volumeHeight);
-            D2D1_RECT_F volPhys = toPhys(volDip);
-            if (x >= volPhys.left && x <= volPhys.right && y >= volPhys.top && y <= volPhys.bottom)
-            {
-                float t = (x - volPhys.left) / (volPhys.right - volPhys.left);
-                setAudioVolume(t);
-                isDraggingAudioProgress = true;
-                handled = true;
-            }
+            // Volume bar – REMOVED
         }
 
         LeaveCriticalSection(&cs);
@@ -1042,7 +1000,7 @@ namespace CalendarOverlay
             float controlsLeft = vpPadding;
             float controlsWidth = renderSize.width - 2 * vpPadding;
 
-            // --- Progress bar ---
+            // --- Progress bar dragging ---
             float progressBarY = controlsTop + vpPadding * 0.5f;
             float progressBarHeight = 5.0f;
             float progressBarWidth = controlsWidth - 2 * vpPadding;
@@ -1062,28 +1020,7 @@ namespace CalendarOverlay
                 if (audioPlayer)
                     audioPlayer->seek(seekPos);
             }
-
-            // --- Volume bar ---
-            float buttonRowY = progressBarY + progressBarHeight + vpPadding * 0.5f;
-            float buttonSize = vpButtonSize;
-            float buttonSpacing = vpPadding * 0.5f;
-            float currentXDip = controlsLeft + vpPadding + (buttonSize + buttonSpacing) * 3;
-            float volumeYDip = buttonRowY + (buttonSize - 8.0f) / 2;
-            float volumeWidth = vpVolumeWidth;
-
-            D2D1_RECT_F volumeDip = D2D1::RectF(
-                currentXDip, volumeYDip,
-                currentXDip + volumeWidth, volumeYDip + 8.0f);
-            D2D1_RECT_F volumePhys = D2D1::RectF(
-                volumeDip.left * scaleX, volumeDip.top * scaleY,
-                volumeDip.right * scaleX, volumeDip.bottom * scaleY);
-
-            if (x >= volumePhys.left && x <= volumePhys.right &&
-                y >= volumePhys.top && y <= volumePhys.bottom)
-            {
-                float t = (x - volumePhys.left) / (volumePhys.right - volumePhys.left);
-                setAudioVolume(t);
-            }
+            // Volume bar dragging – REMOVED
         }
 
         if (hwnd)
@@ -1115,7 +1052,7 @@ namespace CalendarOverlay
     }
 
     // ---------------------------------------------------------------------
-    // toggleAudioPlayback – FIXED: auto‑selects a track if none is chosen
+    // toggleAudioPlayback – auto‑selects a track if none is chosen
     // ---------------------------------------------------------------------
     void CalendarRenderer::toggleAudioPlayback()
     {
@@ -1150,7 +1087,6 @@ namespace CalendarOverlay
             {
                 std::wstring err = audioPlayer->getLastError();
                 OutputDebugStringW((L"[UI] Play failed: " + err + L"\n").c_str());
-                // The error will be displayed in drawAudioControls() automatically
             }
         }
         else
@@ -1200,23 +1136,7 @@ namespace CalendarOverlay
         LeaveCriticalSection(&cs);
     }
 
-    void CalendarRenderer::setAudioVolume(float volume)
-    {
-        EnterCriticalSection(&cs);
-        if (audioPlayer)
-            audioPlayer->setVolume(volume);
-        LeaveCriticalSection(&cs);
-    }
-
-    float CalendarRenderer::getAudioVolume() const
-    {
-        EnterCriticalSection(&cs);
-        float volume = 0.5f;
-        if (audioPlayer)
-            volume = audioPlayer->getVolume();
-        LeaveCriticalSection(&cs);
-        return volume;
-    }
+    // setAudioVolume and getAudioVolume – REMOVED
 
     bool CalendarRenderer::isAudioPlaying() const
     {

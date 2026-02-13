@@ -8,9 +8,9 @@
 #include <iomanip>
 #include <debugapi.h>
 #include <mutex>
-#include <mmsystem.h> // for MCI and midiOut
+#include <mmsystem.h> // for MCI only (volume‑related midiOut calls removed)
 #pragma comment(lib, "shlwapi.lib")
-#pragma comment(lib, "winmm.lib") // for MCI and midiOut
+#pragma comment(lib, "winmm.lib") // for MCI
 
 namespace CalendarOverlay::Audio
 {
@@ -42,7 +42,7 @@ namespace CalendarOverlay::Audio
     // AudioPlayerEngine
     // ---------------------------------------------------------------------
     AudioPlayerEngine::AudioPlayerEngine()
-        : state(PlaybackState::STOPPED), volume(0.8f), muted(false), m_isMidi(false), m_midiAlias(L""), m_midiVolumeBeforeMute(0)
+        : state(PlaybackState::STOPPED), m_isMidi(false), m_midiAlias(L"")
     {
         HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
         if (SUCCEEDED(hr))
@@ -219,9 +219,7 @@ namespace CalendarOverlay::Audio
             return false;
         }
 
-        // Get volume interface
-        m_spSession.As(&m_spAudioVolume);
-
+        // Volume interface is no longer obtained or used
         return true;
     }
 
@@ -239,11 +237,10 @@ namespace CalendarOverlay::Audio
             m_spSource->Shutdown();
             m_spSource.Reset();
         }
-        m_spAudioVolume.Reset();
     }
 
     // ---------------------------------------------------------------------
-    // MIDI playback implementation (MCI + midiOut)
+    // MIDI playback implementation (MCI only – volume removed)
     // ---------------------------------------------------------------------
     bool AudioPlayerEngine::PlayMidi(const AudioTrack &track)
     {
@@ -276,10 +273,7 @@ namespace CalendarOverlay::Audio
             currentTrack.duration = _wtoi(buf);
         }
 
-        // Apply volume and mute
-        SetMidiVolume(volume);
-        if (muted)
-            SetMidiMuted(true);
+        // No volume/mute handling – plays at system default
 
         // Start playback
         std::wstring playCmd = L"play " + m_midiAlias;
@@ -375,57 +369,6 @@ namespace CalendarOverlay::Audio
         return currentTrack.duration;
     }
 
-    bool AudioPlayerEngine::SetMidiVolume(float vol)
-    {
-        // Clamp volume
-        if (vol < 0.0f)
-            vol = 0.0f;
-        if (vol > 1.0f)
-            vol = 1.0f;
-
-        // Use midiOutSetVolume to set system MIDI volume (0..0xFFFF)
-        DWORD dwVolume = (DWORD)(vol * 0xFFFF);
-        DWORD dwVolumeStereo = (dwVolume << 16) | dwVolume; // left & right same
-
-        UINT deviceId = 0; // MIDI mapper
-        if (midiOutGetNumDevs() == 0)
-            return false; // no MIDI device
-
-        // Open the MIDI device to get a handle
-        HMIDIOUT hMidiOut = NULL;
-        MMRESULT openResult = midiOutOpen(&hMidiOut, deviceId, NULL, 0, CALLBACK_NULL);
-        if (openResult != MMSYSERR_NOERROR)
-        {
-            return false; // couldn't open device
-        }
-
-        // Set the volume using the handle
-        MMRESULT mmr = midiOutSetVolume(hMidiOut, dwVolumeStereo);
-
-        // Close the device immediately after setting volume
-        midiOutClose(hMidiOut);
-
-        return mmr == MMSYSERR_NOERROR;
-    }
-
-    bool AudioPlayerEngine::SetMidiMuted(bool mute)
-    {
-        if (mute)
-        {
-            // Store current volume before muting
-            DWORD currentVol = 0;
-            if (midiOutGetVolume(0, &currentVol) == MMSYSERR_NOERROR)
-                m_midiVolumeBeforeMute = currentVol;
-            return midiOutSetVolume(0, 0) == MMSYSERR_NOERROR;
-        }
-        else
-        {
-            // Restore previous volume, or default (full) if unknown
-            DWORD restoreVol = m_midiVolumeBeforeMute != 0 ? m_midiVolumeBeforeMute : 0xFFFFFFFF;
-            return midiOutSetVolume(0, restoreVol) == MMSYSERR_NOERROR;
-        }
-    }
-
     void AudioPlayerEngine::CheckMidiStatus()
     {
         if (!m_isMidi || m_midiAlias.empty() || state == PlaybackState::STOPPED)
@@ -495,12 +438,7 @@ namespace CalendarOverlay::Audio
                 return false;
             }
 
-            // Apply volume & mute
-            if (m_spAudioVolume)
-            {
-                m_spAudioVolume->SetMasterVolume(volume);
-                m_spAudioVolume->SetMute(muted ? TRUE : FALSE);
-            }
+            // Volume is not set – playback uses system default
         }
 
         state = PlaybackState::PLAYING;
@@ -596,42 +534,6 @@ namespace CalendarOverlay::Audio
         }
     }
 
-    bool AudioPlayerEngine::setVolume(float newVolume)
-    {
-        if (newVolume < 0.0f)
-            newVolume = 0.0f;
-        if (newVolume > 1.0f)
-            newVolume = 1.0f;
-        volume = newVolume;
-
-        if (m_isMidi)
-        {
-            return SetMidiVolume(volume);
-        }
-        else
-        {
-            if (!muted && m_spAudioVolume)
-                m_spAudioVolume->SetMasterVolume(volume);
-            return true;
-        }
-    }
-
-    bool AudioPlayerEngine::setMuted(bool newMuted)
-    {
-        muted = newMuted;
-
-        if (m_isMidi)
-        {
-            return SetMidiMuted(muted);
-        }
-        else
-        {
-            if (m_spAudioVolume)
-                m_spAudioVolume->SetMute(muted ? TRUE : FALSE);
-            return true;
-        }
-    }
-
     long AudioPlayerEngine::getCurrentPosition() const
     {
         if (state == PlaybackState::STOPPED)
@@ -701,7 +603,7 @@ namespace CalendarOverlay::Audio
     }
 
     // ---------------------------------------------------------------------
-    // AudioFileManager – uses %USERPROFILE%\.calendarapp\audio
+    // AudioFileManager – unchanged (no volume references)
     // ---------------------------------------------------------------------
     AudioFileManager::AudioFileManager() : nextTrackNumber(1)
     {

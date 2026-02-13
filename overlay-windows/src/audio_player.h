@@ -62,16 +62,12 @@ namespace CalendarOverlay::Audio
         bool resume();
         bool stop();
         bool seek(long positionMillis);
-        bool setVolume(float volume);
-        bool setMuted(bool muted);
 
         // State queries
         PlaybackState getPlaybackState() const { return state; }
         AudioTrack getCurrentTrack() const { return currentTrack; }
         long getCurrentPosition() const;
         long getDuration() const { return currentTrack.duration; }
-        float getVolume() const { return volume; }
-        bool isMuted() const { return muted; }
         bool isPlaying() const { return state == PlaybackState::PLAYING; }
         bool isPaused() const { return state == PlaybackState::PAUSED; }
         bool isStopped() const { return state == PlaybackState::STOPPED; }
@@ -92,7 +88,7 @@ namespace CalendarOverlay::Audio
         void DestroyMediaSession();
         void ProcessSessionEvents();   // internal event pump
 
-        // MIDI playback helpers (MCI / midiOut)
+        // MIDI playback helpers (MCI only – no volume control)
         bool IsMidiFile(const std::wstring& filePath) const;
         bool PlayMidi(const AudioTrack& track);
         bool PauseMidi();
@@ -101,8 +97,6 @@ namespace CalendarOverlay::Audio
         bool SeekMidi(long positionMillis);
         long GetMidiPosition() const;
         long GetMidiDuration() const;
-        bool SetMidiVolume(float vol);
-        bool SetMidiMuted(bool mute);
         void CloseMidi();              // close device and clear alias
         void CheckMidiStatus();       // poll for track end
 
@@ -112,20 +106,16 @@ namespace CalendarOverlay::Audio
         // State
         AudioTrack currentTrack;
         PlaybackState state;
-        float volume;
-        bool muted;
         std::function<void()> onTrackEnd;
 
         // Media Foundation COM pointers
         ComPtr<IMFMediaSession>       m_spSession;
         ComPtr<IMFMediaSource>        m_spSource;
         ComPtr<IMFMediaEventGenerator> m_spEventGen;
-        ComPtr<IMFSimpleAudioVolume>  m_spAudioVolume;
 
         // MIDI specific members
         bool            m_isMidi;      // true if current track is MIDI
         std::wstring    m_midiAlias;   // unique alias for MCI device
-        DWORD           m_midiVolumeBeforeMute; // for mute restore
 
         // Error string (thread‑safe for main thread calls)
         std::wstring m_lastError;

@@ -50,12 +50,10 @@ namespace CalendarOverlay
         void resetScroll();
         bool isScrollingActive() const;
 
-        // Audio methods
+        // Audio methods – volume removed
         void toggleAudioPlayback();
         void playNextTrack();
         void playPreviousTrack();
-        void setAudioVolume(float volume);
-        float getAudioVolume() const;
         bool isAudioPlaying() const;
         std::wstring getCurrentAudioTrack() const;
         void scanAudioFiles();
@@ -68,7 +66,7 @@ namespace CalendarOverlay
 
         // Timer callback – called from main thread
         void handleAudioTimer();
-        static const UINT AUDIO_TIMER_ID;   // public so DesktopWindow can use it
+        static const UINT AUDIO_TIMER_ID;
 
     private:
         bool createDeviceResources();
@@ -96,7 +94,6 @@ namespace CalendarOverlay
         float vpScrollbarWidth;      // 1.5% of width
         float vpAudioControlsHeight; // 10% of height
         float vpButtonSize;          // 4% of height
-        float vpVolumeWidth;         // 15% of width
         float vpCornerRadius;        // 1% of min(width,height)
         float vpFontSize;            // 2.5% of height (min 9pt, max 24pt)
         float vpLineThickness;       // 0.1% of min(width,height)
@@ -132,7 +129,7 @@ namespace CalendarOverlay
         int currentAudioTrackIndex;
         bool audioControlsVisible;
         float audioProgress;
-        bool isDraggingAudioProgress;
+        bool isDraggingAudioProgress;   // used only for progress bar now
 
         // Audio timer
         UINT_PTR m_audioTimerID;

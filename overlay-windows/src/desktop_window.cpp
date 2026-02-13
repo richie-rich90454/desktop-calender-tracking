@@ -434,9 +434,6 @@ namespace CalendarOverlay
         }
     }
 
-    // ---------------------------------------------------------------------
-    // onMouseDown – FIXED: uses bool return from renderer->handleMouseDown()
-    // ---------------------------------------------------------------------
     void DesktopWindow::onMouseDown(int x, int y)
     {
         bool ctrlDown = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
@@ -489,24 +486,7 @@ namespace CalendarOverlay
             renderer->playNextTrack();
         else if (key == VK_LEFT && renderer)
             renderer->playPreviousTrack();
-        else if (key == VK_UP && renderer)
-        {
-            float vol = renderer->getAudioVolume();
-            renderer->setAudioVolume(std::min(1.0f, vol + 0.1f));
-        }
-        else if (key == VK_DOWN && renderer)
-        {
-            float vol = renderer->getAudioVolume();
-            renderer->setAudioVolume(std::max(0.0f, vol - 0.1f));
-        }
-        else if (key == 'M' || key == 'm')
-        {
-            if (renderer)
-            {
-                float vol = renderer->getAudioVolume();
-                renderer->setAudioVolume(vol > 0.0f ? 0.0f : 0.5f);
-            }
-        }
+        // Volume up/down and mute keys have been removed – volume slider is gone.
     }
 
     void DesktopWindow::onCommand(WPARAM wParam)
