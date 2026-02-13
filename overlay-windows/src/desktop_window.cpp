@@ -402,6 +402,8 @@ namespace CalendarOverlay
             InvalidateRect(hwnd, NULL, FALSE);
         }
         updateWindowVisibilityBasedOnDesktop();
+        if (renderer)
+            renderer->handleAudioTimer();
         if (++updateCounter >= 30)
         {
             update();

@@ -1216,5 +1216,11 @@ namespace CalendarOverlay
             audioPlayer->seek(positionMillis);
         LeaveCriticalSection(&cs);
     }
-
+    void CalendarRenderer::handleAudioTimer()
+    {
+        EnterCriticalSection(&cs);
+        if (audioPlayer)
+            audioPlayer->processEvents();
+        LeaveCriticalSection(&cs);
+    }
 } // namespace
