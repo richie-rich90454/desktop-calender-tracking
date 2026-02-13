@@ -1,3 +1,4 @@
+// ==================== audio_player.h ====================
 #pragma once
 
 #ifndef NOMINMAX
@@ -91,6 +92,20 @@ namespace CalendarOverlay::Audio
         void DestroyMediaSession();
         void ProcessSessionEvents();   // internal event pump
 
+        // MIDI playback helpers (MCI / midiOut)
+        bool IsMidiFile(const std::wstring& filePath) const;
+        bool PlayMidi(const AudioTrack& track);
+        bool PauseMidi();
+        bool ResumeMidi();
+        bool StopMidi();
+        bool SeekMidi(long positionMillis);
+        long GetMidiPosition() const;
+        long GetMidiDuration() const;
+        bool SetMidiVolume(float vol);
+        bool SetMidiMuted(bool mute);
+        void CloseMidi();              // close device and clear alias
+        void CheckMidiStatus();       // poll for track end
+
         // Error helper
         void SetError(const std::wstring& err);
 
@@ -106,6 +121,11 @@ namespace CalendarOverlay::Audio
         ComPtr<IMFMediaSource>        m_spSource;
         ComPtr<IMFMediaEventGenerator> m_spEventGen;
         ComPtr<IMFSimpleAudioVolume>  m_spAudioVolume;
+
+        // MIDI specific members
+        bool            m_isMidi;      // true if current track is MIDI
+        std::wstring    m_midiAlias;   // unique alias for MCI device
+        DWORD           m_midiVolumeBeforeMute; // for mute restore
 
         // Error string (thread‑safe for main thread calls)
         std::wstring m_lastError;
