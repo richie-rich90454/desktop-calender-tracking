@@ -1218,6 +1218,12 @@ namespace CalendarOverlay
     }
     void CalendarRenderer::handleAudioTimer()
     {
+        static DWORD lastCall = 0;
+        DWORD now = GetTickCount();
+        if (now - lastCall < 50)
+            return; // max 20 Hz
+        lastCall = now;
+
         EnterCriticalSection(&cs);
         if (audioPlayer)
             audioPlayer->processEvents();

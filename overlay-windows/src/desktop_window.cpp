@@ -198,7 +198,7 @@ namespace CalendarOverlay
         }
         renderer->setEvents(eventManager->getTodayEvents());
 
-        renderTimer = SetTimer(hwnd, 1, 16, NULL);
+        renderTimer = SetTimer(hwnd, 1, 100, NULL);
         updateTimer = SetTimer(hwnd, 2, config.refreshInterval * 1000, NULL);
         desktopCheckTimer = SetTimer(hwnd, 3, 500, NULL);
 
@@ -214,6 +214,8 @@ namespace CalendarOverlay
             visible = true;
             InvalidateRect(hwnd, NULL, TRUE);
         }
+        if (!renderTimer)
+            renderTimer = SetTimer(hwnd, 1, 100, NULL);
     }
 
     void DesktopWindow::hide()
@@ -229,6 +231,7 @@ namespace CalendarOverlay
     {
         if (renderTimer)
             KillTimer(hwnd, renderTimer);
+            renderTimer=0;
         if (updateTimer)
             KillTimer(hwnd, updateTimer);
         if (desktopCheckTimer)
