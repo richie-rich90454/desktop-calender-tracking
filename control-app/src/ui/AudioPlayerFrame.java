@@ -44,7 +44,6 @@ public class AudioPlayerFrame extends JPanel{
     private final JButton uploadButton;
     private final JButton deleteButton;
     private final JButton clearButton;
-    private final JSlider volumeSlider;
     private final JSlider progressSlider;
     private final JLabel currentTimeLabel;
     private final JLabel totalTimeLabel;
@@ -66,7 +65,6 @@ public class AudioPlayerFrame extends JPanel{
         this.uploadButton=createActionButton("Upload", "Upload audio file");
         this.deleteButton=createActionButton("Delete", "Delete selected track");
         this.clearButton=createActionButton("Clear All", "Clear all tracks");
-        this.volumeSlider=new JSlider(0, 100, 80);
         this.progressSlider=new JSlider(0, 100, 0);
         this.currentTimeLabel=new JLabel("00:00");
         this.totalTimeLabel=new JLabel("00:00");
@@ -85,11 +83,6 @@ public class AudioPlayerFrame extends JPanel{
         playlistList.setBackground(NEUTRAL_BG);
         playlistList.setBorder(new EmptyBorder(5, 5, 5, 5));
         playlistList.setVisibleRowCount(8);
-        volumeSlider.setBackground(NEUTRAL_BG);
-        volumeSlider.setPaintTicks(true);
-        volumeSlider.setMajorTickSpacing(20);
-        volumeSlider.setPaintLabels(true);
-        volumeSlider.setPreferredSize(new Dimension(100, 40));
         progressSlider.setBackground(NEUTRAL_BG);
         progressSlider.setEnabled(false);
         progressSlider.setPreferredSize(new Dimension(200, 20));
@@ -192,13 +185,6 @@ public class AudioPlayerFrame extends JPanel{
         nowPlayingPanel.setBackground(NEUTRAL_BG);
         nowPlayingPanel.setBorder(new EmptyBorder(10, 0, 5, 0));
         nowPlayingPanel.add(nowPlayingLabel, BorderLayout.CENTER);
-        JPanel volumePanel=new JPanel(new BorderLayout(10, 0));
-        volumePanel.setBackground(NEUTRAL_BG);
-        volumePanel.setBorder(new EmptyBorder(10, 0, 0, 0));
-        JLabel volumeLabel=new JLabel("Vol");
-        volumeLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        volumePanel.add(volumeLabel, BorderLayout.WEST);
-        volumePanel.add(volumeSlider, BorderLayout.CENTER);
         JPanel bottomPanel=new JPanel();
         bottomPanel.setLayout(new BoxLayout(bottomPanel, BoxLayout.Y_AXIS));
         bottomPanel.setBackground(NEUTRAL_BG);
@@ -207,7 +193,6 @@ public class AudioPlayerFrame extends JPanel{
         bottomPanel.add(transportPanel);
         bottomPanel.add(progressPanel);
         bottomPanel.add(nowPlayingPanel);
-        bottomPanel.add(volumePanel);
         add(headerPanel, BorderLayout.NORTH);
         add(playlistScroll, BorderLayout.CENTER);
         add(bottomPanel, BorderLayout.SOUTH);
@@ -229,12 +214,6 @@ public class AudioPlayerFrame extends JPanel{
         uploadButton.addActionListener(e -> uploadAudioFile());
         deleteButton.addActionListener(e -> deleteSelectedTrack());
         clearButton.addActionListener(e -> clearAllTracks());
-        volumeSlider.addChangeListener(e ->{
-            if (!((JSlider) e.getSource()).getValueIsAdjusting()){
-                float volume=(float) volumeSlider.getValue()/100.0f;
-                audioEngine.setVolume(volume);
-            }
-        });
         progressSlider.addChangeListener(e ->{
             if (progressSlider.getValueIsAdjusting()){
                 AudioTrack current=audioEngine.getCurrentTrack();
