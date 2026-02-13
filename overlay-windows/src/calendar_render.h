@@ -26,7 +26,6 @@
 
 namespace CalendarOverlay
 {
-
     class CalendarRenderer
     {
     public:
@@ -45,7 +44,7 @@ namespace CalendarOverlay
         void setPosition(int x, int y) {}
 
         void handleMouseWheel(float delta);
-        bool handleMouseDown(int x, int y);   // ← changed: now returns bool
+        bool handleMouseDown(int x, int y);
         void handleMouseMove(int x, int y);
         void handleMouseUp(int x, int y);
         void resetScroll();
@@ -66,6 +65,10 @@ namespace CalendarOverlay
         void resumeAudioPlayback();
         void seekAudio(long positionMillis);
         void updateDPI(UINT dpiX, UINT dpiY);
+
+        // Timer callback – called from main thread
+        void handleAudioTimer();
+        static const UINT AUDIO_TIMER_ID;   // public so DesktopWindow can use it
 
     private:
         bool createDeviceResources();
@@ -130,6 +133,8 @@ namespace CalendarOverlay
         bool audioControlsVisible;
         float audioProgress;
         bool isDraggingAudioProgress;
-    };
 
-} // namespace
+        // Audio timer
+        UINT_PTR m_audioTimerID;
+    };
+}

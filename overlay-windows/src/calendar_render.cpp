@@ -5,6 +5,7 @@
 #include <chrono>
 #include <algorithm>
 #include <filesystem>
+#include <debugapi.h> // for OutputDebugStringW
 #pragma comment(lib, "windowscodecs.lib")
 
 namespace fs = std::filesystem;
@@ -494,7 +495,7 @@ namespace CalendarOverlay
     }
 
     // ---------------------------------------------------------------------
-    // drawAudioControls – FIXED: properly drawn vector buttons
+    // drawAudioControls – properly drawn vector buttons + "No audio files" message
     // ---------------------------------------------------------------------
     void CalendarRenderer::drawAudioControls()
     {
@@ -550,7 +551,7 @@ namespace CalendarOverlay
         renderTarget->FillRectangle(progressFillRect, progressFillBrush);
         progressFillBrush->Release();
 
-        // ---------- Buttons row (properly drawn icons using path geometry) ----------
+        // ---------- Buttons row (vector icons via path geometry) ----------
         float buttonRowY = progressBarY + progressBarHeight + vpPadding * 0.5f;
         float buttonSize = vpButtonSize;
         float buttonSpacing = vpPadding * 0.5f;
@@ -564,12 +565,11 @@ namespace CalendarOverlay
         ID2D1SolidColorBrush *iconBrush = nullptr;
         renderTarget->CreateSolidColorBrush(D2D1::ColorF(0.2f, 0.2f, 0.2f, 1.0f), &iconBrush);
 
-        // ----- Previous (left-pointing triangle) -----
+        // ----- Previous (left triangle) -----
         D2D1_RECT_F prevRect = D2D1::RectF(currentX, buttonY, currentX + buttonSize, buttonY + buttonSize);
         renderTarget->FillRectangle(prevRect, buttonBgBrush);
         renderTarget->DrawRectangle(prevRect, buttonBorderBrush, vpLineThickness);
 
-        // Create triangle geometry
         ID2D1PathGeometry *pPrevGeo = nullptr;
         d2dFactory->CreatePathGeometry(&pPrevGeo);
         ID2D1GeometrySink *pSink = nullptr;
@@ -587,7 +587,7 @@ namespace CalendarOverlay
 
         currentX += buttonSize + buttonSpacing;
 
-        // ----- Play/Pause (right triangle or two vertical bars) -----
+        // ----- Play/Pause -----
         D2D1_RECT_F playPauseRect = D2D1::RectF(currentX, buttonY, currentX + buttonSize, buttonY + buttonSize);
         renderTarget->FillRectangle(playPauseRect, buttonBgBrush);
         renderTarget->DrawRectangle(playPauseRect, buttonBorderBrush, vpLineThickness);
@@ -608,7 +608,7 @@ namespace CalendarOverlay
         }
         else
         {
-            // Play: right-pointing triangle
+            // Play: right triangle
             ID2D1PathGeometry *pPlayGeo = nullptr;
             d2dFactory->CreatePathGeometry(&pPlayGeo);
             ID2D1GeometrySink *pSinkPlay = nullptr;
@@ -626,7 +626,7 @@ namespace CalendarOverlay
         }
         currentX += buttonSize + buttonSpacing;
 
-        // ----- Next (right-pointing triangle) -----
+        // ----- Next (right triangle) -----
         D2D1_RECT_F nextRect = D2D1::RectF(currentX, buttonY, currentX + buttonSize, buttonY + buttonSize);
         renderTarget->FillRectangle(nextRect, buttonBgBrush);
         renderTarget->DrawRectangle(nextRect, buttonBorderBrush, vpLineThickness);
@@ -676,16 +676,26 @@ namespace CalendarOverlay
 
         currentX += volumeWidth + vpPadding;
 
-        // ---------- Track name (truncated) ----------
+        // ---------- Track name / status message ----------
         std::wstring trackName = getCurrentAudioTrack();
         if (trackName.empty())
-            trackName = L"No track";
+        {
+            if (audioTracks.empty())
+                trackName = L"No audio files (add via Java GUI)";
+            else
+                trackName = L"No track selected";
+        }
         else
         {
             float maxWidth = (controlsLeft + controlsWidth - vpPadding) - currentX;
             size_t maxChars = static_cast<size_t>(maxWidth / (vpFontSize * 0.5f));
             if (trackName.length() > maxChars && maxChars > 5)
                 trackName = trackName.substr(0, maxChars - 3) + L"...";
+        }
+        std::wstring errorMsg = audioPlayer->getLastError();
+        if (!errorMsg.empty())
+        {
+            trackName = L"⚠️ " + errorMsg; // show error in red? you can change brush
         }
         D2D1_RECT_F trackNameRect = D2D1::RectF(
             currentX, buttonY,
@@ -916,12 +926,9 @@ namespace CalendarOverlay
                 dip.right * scaleX, dip.bottom * scaleY);
         };
 
-        // Scrollbar (unchanged)
-        if (needsScrollbar)
-        { /* ... */
-        }
+        // ----- Scrollbar hit test – (implement if needed; removed empty block) -----
 
-        // Audio controls
+        // ----- Audio controls -----
         if (!handled && audioControlsVisible && audioPlayer)
         {
             float controlsTop = renderSize.height - vpAudioControlsHeight - 5.0f;
@@ -1035,10 +1042,10 @@ namespace CalendarOverlay
             float controlsLeft = vpPadding;
             float controlsWidth = renderSize.width - 2 * vpPadding;
 
-            // --- Progress bar (FIXED: use correct width) ---
+            // --- Progress bar ---
             float progressBarY = controlsTop + vpPadding * 0.5f;
             float progressBarHeight = 5.0f;
-            float progressBarWidth = controlsWidth - 2 * vpPadding; // ✅ CORRECT
+            float progressBarWidth = controlsWidth - 2 * vpPadding;
 
             D2D1_RECT_F progressDip = D2D1::RectF(
                 controlsLeft + vpPadding, progressBarY,
@@ -1056,7 +1063,7 @@ namespace CalendarOverlay
                     audioPlayer->seek(seekPos);
             }
 
-            // --- Volume bar (unchanged) ---
+            // --- Volume bar ---
             float buttonRowY = progressBarY + progressBarHeight + vpPadding * 0.5f;
             float buttonSize = vpButtonSize;
             float buttonSpacing = vpPadding * 0.5f;
@@ -1107,17 +1114,48 @@ namespace CalendarOverlay
         return scrolling;
     }
 
+    // ---------------------------------------------------------------------
+    // toggleAudioPlayback – FIXED: auto‑selects a track if none is chosen
+    // ---------------------------------------------------------------------
     void CalendarRenderer::toggleAudioPlayback()
     {
         EnterCriticalSection(&cs);
-        if (audioPlayer)
+        if (!audioPlayer)
         {
-            if (audioPlayer->isPlaying())
-                audioPlayer->pause();
-            else if (audioPlayer->isPaused())
-                audioPlayer->resume();
-            else if (currentAudioTrackIndex >= 0 && currentAudioTrackIndex < (int)audioTracks.size())
-                audioPlayer->play(audioTracks[currentAudioTrackIndex]);
+            LeaveCriticalSection(&cs);
+            return;
+        }
+
+        // --- refresh track list if empty ---
+        if (audioTracks.empty())
+        {
+            scanAudioFiles();
+        }
+
+        // --- auto‑select first track if none selected ---
+        if (currentAudioTrackIndex < 0 && !audioTracks.empty())
+        {
+            currentAudioTrackIndex = 0;
+            OutputDebugStringW(L"[UI] Auto‑selected first audio track\n");
+        }
+
+        if (audioPlayer->isPlaying())
+            audioPlayer->pause();
+        else if (audioPlayer->isPaused())
+            audioPlayer->resume();
+        else if (currentAudioTrackIndex >= 0 && currentAudioTrackIndex < (int)audioTracks.size())
+        {
+            bool success = audioPlayer->play(audioTracks[currentAudioTrackIndex]);
+            if (!success)
+            {
+                std::wstring err = audioPlayer->getLastError();
+                OutputDebugStringW((L"[UI] Play failed: " + err + L"\n").c_str());
+                // The error will be displayed in drawAudioControls() automatically
+            }
+        }
+        else
+        {
+            OutputDebugStringW(L"[UI] No audio track available to play\n");
         }
         LeaveCriticalSection(&cs);
     }

@@ -343,3 +343,4 @@ fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
 .vscode/settings.json
+.vs

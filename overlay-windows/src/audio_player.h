@@ -11,27 +11,20 @@
 #include <string>
 #include <vector>
 #include <memory>
-#include <atomic>
-#include <thread>
-#include <mutex>
 #include <functional>
-#include <fstream>
-#include <sstream>
-#include <iomanip>
 #include <filesystem>
-#include <mmsystem.h>
-#include <mmreg.h>
-#include <dsound.h>
 #include <mfapi.h>
 #include <mfidl.h>
 #include <mfreadwrite.h>
-
-#pragma comment(lib, "winmm.lib")
-#pragma comment(lib, "dsound.lib")
+#include <wrl/client.h>
+#include <mutex>  
 #pragma comment(lib, "mf.lib")
 #pragma comment(lib, "mfplat.lib")
 #pragma comment(lib, "mfreadwrite.lib")
 #pragma comment(lib, "mfuuid.lib")
+
+namespace fs = std::filesystem;
+using Microsoft::WRL::ComPtr;
 
 namespace CalendarOverlay::Audio
 {
@@ -52,19 +45,7 @@ namespace CalendarOverlay::Audio
         mutable long currentPosition; // milliseconds
 
         AudioTrack() : trackNumber(0), duration(0), currentPosition(0) {}
-
-        std::wstring getFormattedDuration() const
-        {
-            if (duration <= 0) return L"00:00";
-            long seconds = duration / 1000;
-            long minutes = seconds / 60;
-            seconds %= 60;
-            std::wstringstream ss;
-            ss << std::setw(2) << std::setfill(L'0') << minutes << L":"
-               << std::setw(2) << std::setfill(L'0') << seconds;
-            return ss.str();
-        }
-
+        std::wstring getFormattedDuration() const;
         bool isSupportedFormat() const;
     };
 
@@ -74,6 +55,7 @@ namespace CalendarOverlay::Audio
         AudioPlayerEngine();
         ~AudioPlayerEngine();
 
+        // Playback control
         bool play(const AudioTrack& track);
         bool pause();
         bool resume();
@@ -82,6 +64,7 @@ namespace CalendarOverlay::Audio
         bool setVolume(float volume);
         bool setMuted(bool muted);
 
+        // State queries
         PlaybackState getPlaybackState() const { return state; }
         AudioTrack getCurrentTrack() const { return currentTrack; }
         long getCurrentPosition() const;
@@ -92,45 +75,41 @@ namespace CalendarOverlay::Audio
         bool isPaused() const { return state == PlaybackState::PAUSED; }
         bool isStopped() const { return state == PlaybackState::STOPPED; }
 
+        // Callback and cleanup
         void setOnTrackEnd(std::function<void()> callback) { onTrackEnd = callback; }
         void cleanup();
 
-    private:
-        bool playWav(const AudioTrack& track);
-        bool playMp3(const AudioTrack& track);
-        void cleanupWav();
-        void cleanupMp3();
-        static HRESULT CreatePlaybackTopology(IMFMediaSource* pSource,
-                                              IMFPresentationDescriptor* pPD,
-                                              IMFTopology** ppTopology);
-        void startPositionUpdater();
-        void stopPositionUpdater();
-        static void CALLBACK waveOutCallback(HWAVEOUT hwo, UINT uMsg,
-                                             DWORD_PTR dwInstance,
-                                             DWORD_PTR dwParam1,
-                                             DWORD_PTR dwParam2);
+        // Error reporting
+        std::wstring getLastError() const;
 
+        // MUST be called periodically from main UI thread (e.g., timer)
+        void processEvents();
+
+    private:
+        // Media Foundation session management
+        bool CreateMediaSession(const AudioTrack& track);
+        void DestroyMediaSession();
+        void ProcessSessionEvents();   // internal event pump
+
+        // Error helper
+        void SetError(const std::wstring& err);
+
+        // State
         AudioTrack currentTrack;
         PlaybackState state;
         float volume;
         bool muted;
         std::function<void()> onTrackEnd;
 
-        // WAV
-        HWAVEOUT hWaveOut;
-        WAVEFORMATEX waveFormat;
-        std::vector<BYTE> waveData;
-        std::unique_ptr<WAVEHDR> waveHeader;
+        // Media Foundation COM pointers
+        ComPtr<IMFMediaSession>       m_spSession;
+        ComPtr<IMFMediaSource>        m_spSource;
+        ComPtr<IMFMediaEventGenerator> m_spEventGen;
+        ComPtr<IMFSimpleAudioVolume>  m_spAudioVolume;
 
-        // MP3
-        IMFMediaSession* pMediaSession;
-        IMFMediaSource* pMediaSource;
-
-        // Threading
-        std::thread positionThread;
-        std::atomic<bool> positionThreadRunning;
-        std::atomic<bool> cleanedUp;
-        mutable std::mutex mutex;
+        // Error string (thread‑safe for main thread calls)
+        std::wstring m_lastError;
+        mutable std::mutex m_errorMutex;
     };
 
     class AudioFileManager
