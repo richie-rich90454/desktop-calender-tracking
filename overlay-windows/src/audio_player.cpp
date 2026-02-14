@@ -566,7 +566,8 @@ namespace CalendarOverlay::Audio
         if (!m_spEventGen)
             return;
         IMFMediaEvent *pEvent = nullptr;
-        while (m_spEventGen->GetEvent(0, &pEvent) == S_OK)
+        // Change 0 → MF_EVENT_FLAG_NO_WAIT to avoid blocking
+        while (m_spEventGen->GetEvent(MF_EVENT_FLAG_NO_WAIT, &pEvent) == S_OK)
         {
             MediaEventType met;
             pEvent->GetType(&met);
