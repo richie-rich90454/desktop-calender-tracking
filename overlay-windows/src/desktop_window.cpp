@@ -1,3 +1,9 @@
+// ==================== desktop_window.cpp ====================
+// Implementation of the DesktopWindow class.
+// Handles window creation, message processing, rendering, and interaction.
+// The overlay is always on top, can be dragged with Ctrl+click,
+// and automatically hides when a full‑screen application is detected.
+
 #include "desktop_window.h"
 #include "config.h"
 #include <windowsx.h>
@@ -12,7 +18,9 @@
 
 namespace CalendarOverlay
 {
-
+    // ------------------------------------------------------------------------
+    // Constructor: sets up DPI awareness, initial size, and creates sub‑objects.
+    // ------------------------------------------------------------------------
     DesktopWindow::DesktopWindow()
         : hwnd(NULL), hInstance(GetModuleHandle(NULL)),
           visible(false), dragging(false), dragStartX(0), dragStartY(0),
@@ -26,9 +34,12 @@ namespace CalendarOverlay
     {
         className = L"CalendarOverlayWindow";
 
+        // Load saved configuration
         Config &cfg = Config::getInstance();
         cfg.load();
         config = cfg.getConfig();
+
+        // Enable per‑monitor DPI awareness (Windows 10 version 1703+)
         HMODULE user32 = LoadLibrary(L"user32.dll");
         if (user32)
         {
@@ -40,7 +51,7 @@ namespace CalendarOverlay
             }
             else
             {
-                SetProcessDPIAware();
+                SetProcessDPIAware(); // Fallback for older Windows
             }
             FreeLibrary(user32);
         }
@@ -49,6 +60,7 @@ namespace CalendarOverlay
             SetProcessDPIAware();
         }
 
+        // Parse command line for wallpaper mode flags
         int argc;
         LPWSTR *argv = CommandLineToArgvW(GetCommandLineW(), &argc);
         if (argv)
@@ -72,6 +84,7 @@ namespace CalendarOverlay
             LocalFree(argv);
         }
 
+        // Determine a reasonable default window size based on screen size
         RECT workArea;
         SystemParametersInfo(SPI_GETWORKAREA, 0, &workArea, 0);
         int screenWidth = workArea.right - workArea.left;
@@ -91,9 +104,11 @@ namespace CalendarOverlay
         windowWidth = baseWidth;
         windowHeight = baseHeight;
 
+        // Default position: top‑right corner
         windowX = workArea.right - windowWidth - 10;
         windowY = workArea.top + 10;
 
+        // Override with saved config if available
         if (config.positionX != 100 || config.positionY != 100)
         {
             windowX = config.positionX;
@@ -110,16 +125,23 @@ namespace CalendarOverlay
         alpha = static_cast<BYTE>(config.opacity * 255);
         clickThrough = config.clickThrough;
 
+        // Create the renderer and event manager
         renderer = std::make_unique<CalendarRenderer>();
         eventManager = std::make_unique<EventManager>();
     }
 
+    // ------------------------------------------------------------------------
+    // Destructor: clean up all resources.
+    // ------------------------------------------------------------------------
     DesktopWindow::~DesktopWindow()
     {
         close();
         cleanupDoubleBuffer();
     }
 
+    // ------------------------------------------------------------------------
+    // Registers the window class with the OS.
+    // ------------------------------------------------------------------------
     bool DesktopWindow::registerWindowClass()
     {
         WNDCLASSEXW wc = {};
@@ -135,6 +157,9 @@ namespace CalendarOverlay
         return RegisterClassExW(&wc) != 0;
     }
 
+    // ------------------------------------------------------------------------
+    // Creates the actual window with layered, tool‑window, top‑most styles.
+    // ------------------------------------------------------------------------
     bool DesktopWindow::createWindowInstance()
     {
         DWORD exStyle = WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
@@ -142,7 +167,7 @@ namespace CalendarOverlay
         if (clickThrough)
             exStyle |= WS_EX_TRANSPARENT;
 
-        DWORD style = WS_POPUP | WS_THICKFRAME;
+        DWORD style = WS_POPUP | WS_THICKFRAME;   // Thick frame allows resizing
 
         hwnd = CreateWindowExW(
             exStyle,
@@ -155,8 +180,10 @@ namespace CalendarOverlay
         if (!hwnd)
             return false;
 
+        // Set initial opacity
         SetLayeredWindowAttributes(hwnd, 0, alpha, LWA_ALPHA);
 
+        // Apply dark mode and rounded corners via DWM (Windows 10 1809+)
         HMODULE dwmapi = LoadLibrary(L"dwmapi.dll");
         if (dwmapi)
         {
@@ -170,6 +197,10 @@ namespace CalendarOverlay
         return true;
     }
 
+    // ------------------------------------------------------------------------
+    // Public create method: registers class, creates window, initialises
+    // double buffer, renderer, event manager, and timers.
+    // ------------------------------------------------------------------------
     bool DesktopWindow::create()
     {
         if (!registerWindowClass())
@@ -198,6 +229,7 @@ namespace CalendarOverlay
         }
         renderer->setEvents(eventManager->getTodayEvents());
 
+        // Set up timers: render every 100 ms, update events periodically, check desktop every 500 ms.
         renderTimer = SetTimer(hwnd, 1, 100, NULL);
         updateTimer = SetTimer(hwnd, 2, config.refreshInterval * 1000, NULL);
         desktopCheckTimer = SetTimer(hwnd, 3, 500, NULL);
@@ -206,11 +238,14 @@ namespace CalendarOverlay
         return true;
     }
 
+    // ------------------------------------------------------------------------
+    // Shows the window (if hidden) and ensures the render timer is running.
+    // ------------------------------------------------------------------------
     void DesktopWindow::show()
     {
         if (hwnd && !visible)
         {
-            ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+            ShowWindow(hwnd, SW_SHOWNOACTIVATE);   // Show without stealing focus
             visible = true;
             InvalidateRect(hwnd, NULL, TRUE);
         }
@@ -218,6 +253,9 @@ namespace CalendarOverlay
             renderTimer = SetTimer(hwnd, 1, 100, NULL);
     }
 
+    // ------------------------------------------------------------------------
+    // Hides the window.
+    // ------------------------------------------------------------------------
     void DesktopWindow::hide()
     {
         if (hwnd && visible)
@@ -227,6 +265,9 @@ namespace CalendarOverlay
         }
     }
 
+    // ------------------------------------------------------------------------
+    // Closes the window, kills timers, removes tray icon, and unregisters class.
+    // ------------------------------------------------------------------------
     void DesktopWindow::close()
     {
         if (renderTimer)
@@ -245,6 +286,9 @@ namespace CalendarOverlay
         UnregisterClassW(className.c_str(), hInstance);
     }
 
+    // ------------------------------------------------------------------------
+    // Forces an update of events from the manager and passes them to the renderer.
+    // ------------------------------------------------------------------------
     void DesktopWindow::update()
     {
         if (eventManager)
@@ -257,6 +301,9 @@ namespace CalendarOverlay
         }
     }
 
+    // ------------------------------------------------------------------------
+    // Renders the window content using double‑buffering (if available).
+    // ------------------------------------------------------------------------
     void DesktopWindow::render()
     {
         if (!visible || !renderer || !hwnd)
@@ -273,8 +320,9 @@ namespace CalendarOverlay
             FillRect(doubleBufferDC, &clientRect, bgBrush);
             DeleteObject(bgBrush);
 
-            renderer->render();
+            renderer->render();   // Renderer draws into its own surface (which is tied to the double buffer)
 
+            // Alpha blend the double buffer onto the screen
             BLENDFUNCTION blend = {0};
             blend.BlendOp = AC_SRC_OVER;
             blend.SourceConstantAlpha = alpha;
@@ -287,12 +335,15 @@ namespace CalendarOverlay
         }
         else
         {
-            renderer->render();
+            renderer->render();   // Fallback: render directly
         }
 
         EndPaint(hwnd, &ps);
     }
 
+    // ------------------------------------------------------------------------
+    // Static window procedure – dispatches messages to the appropriate instance.
+    // ------------------------------------------------------------------------
     LRESULT CALLBACK DesktopWindow::windowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     {
         DesktopWindow *window = nullptr;
@@ -314,7 +365,7 @@ namespace CalendarOverlay
             case WM_TIMER:
                 window->onTimer();
                 return 0;
-            case WM_APP + 2:
+            case WM_APP + 2:   // Custom message: track ended – play next
                 if (window->renderer)
                     window->renderer->playNextTrack();
                 return 0;
@@ -340,7 +391,7 @@ namespace CalendarOverlay
             case WM_COMMAND:
                 window->onCommand(wParam);
                 return 0;
-            case WM_APP + 1:
+            case WM_APP + 1:   // Tray icon notification
                 if (lParam == WM_RBUTTONUP || lParam == WM_CONTEXTMENU)
                 {
                     POINT pt;
@@ -392,21 +443,29 @@ namespace CalendarOverlay
         return DefWindowProc(hwnd, msg, wParam, lParam);
     }
 
+    // ------------------------------------------------------------------------
+    // Paint handler – calls render().
+    // ------------------------------------------------------------------------
     void DesktopWindow::onPaint()
     {
         render();
     }
 
+    // ------------------------------------------------------------------------
+    // Timer handler: invalidates for redraw, checks desktop status, processes audio.
+    // ------------------------------------------------------------------------
     void DesktopWindow::onTimer()
     {
         static int updateCounter = 0;
         if (visible && hwnd)
         {
-            InvalidateRect(hwnd, NULL, FALSE);
+            InvalidateRect(hwnd, NULL, FALSE);   // Trigger WM_PAINT
         }
         updateWindowVisibilityBasedOnDesktop();
         if (renderer)
-            renderer->handleAudioTimer();
+            renderer->handleAudioTimer();        // Update audio progress
+
+        // Refresh events every ~30 timer ticks (3 seconds if timer is 100 ms)
         if (++updateCounter >= 30)
         {
             update();
@@ -414,6 +473,9 @@ namespace CalendarOverlay
         }
     }
 
+    // ------------------------------------------------------------------------
+    // Mouse move handler: handles window dragging and forwards to renderer.
+    // ------------------------------------------------------------------------
     void DesktopWindow::onMouseMove(int x, int y)
     {
         if (dragging)
@@ -429,16 +491,21 @@ namespace CalendarOverlay
             dragStartX = cursorPos.x;
             dragStartY = cursorPos.y;
 
+            // Save new position to config
             Config &cfg = Config::getInstance();
             cfg.setPosition(windowX, windowY);
             cfg.save();
         }
         else if (renderer)
         {
-            renderer->handleMouseMove(x, y);
+            renderer->handleMouseMove(x, y);   // Let renderer handle hover effects, progress drag, etc.
         }
     }
 
+    // ------------------------------------------------------------------------
+    // Mouse down handler: starts drag if Ctrl is held, otherwise passes to renderer.
+    // If click is not handled, launches Java GUI.
+    // ------------------------------------------------------------------------
     void DesktopWindow::onMouseDown(int x, int y)
     {
         bool ctrlDown = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
@@ -449,6 +516,7 @@ namespace CalendarOverlay
 
         if (ctrlDown)
         {
+            // Begin dragging the window
             dragging = true;
             POINT cursorPos;
             GetCursorPos(&cursorPos);
@@ -458,12 +526,15 @@ namespace CalendarOverlay
         }
 
         if (renderer && renderer->isScrollingActive())
-            return;
+            return;   // Don't launch GUI while scrolling
 
         if (!clickHandled)
-            launchJavaGUI();
+            launchJavaGUI();   // Default action: open configuration app
     }
 
+    // ------------------------------------------------------------------------
+    // Mouse up handler: ends dragging, forwards to renderer, restores click‑through if needed.
+    // ------------------------------------------------------------------------
     void DesktopWindow::onMouseUp(int x, int y)
     {
         dragging = false;
@@ -473,12 +544,22 @@ namespace CalendarOverlay
         }
         if (clickThrough && hwnd)
         {
+            // Re‑enable WS_EX_TRANSPARENT (it may have been temporarily cleared during drag)
             LONG exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
             exStyle |= WS_EX_TRANSPARENT;
             SetWindowLong(hwnd, GWL_EXSTYLE, exStyle);
         }
     }
 
+    // ------------------------------------------------------------------------
+    // Keyboard shortcuts:
+    //   ESC     – hide window
+    //   F5      – refresh events
+    //   Space   – play/pause audio
+    //   Right   – next track
+    //   Left    – previous track
+    // (Volume keys have been removed as per requirements)
+    // ------------------------------------------------------------------------
     void DesktopWindow::onKeyDown(WPARAM key)
     {
         if (key == VK_ESCAPE)
@@ -494,23 +575,29 @@ namespace CalendarOverlay
         // Volume up/down and mute keys have been removed – volume slider is gone.
     }
 
+    // ------------------------------------------------------------------------
+    // Handles commands from the tray context menu.
+    // ------------------------------------------------------------------------
     void DesktopWindow::onCommand(WPARAM wParam)
     {
         switch (LOWORD(wParam))
         {
-        case 1001:
+        case 1001:   // Show/Hide
             if (visible)
                 hide();
             else
                 show();
             break;
-        case 1002:
+        case 1002:   // Exit
             close();
             PostQuitMessage(0);
             break;
         }
     }
 
+    // ------------------------------------------------------------------------
+    // Creates the system tray icon.
+    // ------------------------------------------------------------------------
     void DesktopWindow::createTrayIcon()
     {
         memset(&trayIconData, 0, sizeof(trayIconData));
@@ -518,7 +605,7 @@ namespace CalendarOverlay
         trayIconData.hWnd = hwnd;
         trayIconData.uID = 100;
         trayIconData.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
-        trayIconData.uCallbackMessage = WM_APP + 1;
+        trayIconData.uCallbackMessage = WM_APP + 1;   // Custom message for tray events
         trayIconData.hIcon = (HICON)LoadImage(hInstance,
                                               MAKEINTRESOURCE(1),
                                               IMAGE_ICON,
@@ -532,6 +619,9 @@ namespace CalendarOverlay
         trayIconVisible = true;
     }
 
+    // ------------------------------------------------------------------------
+    // Removes the system tray icon.
+    // ------------------------------------------------------------------------
     void DesktopWindow::removeTrayIcon()
     {
         if (trayIconVisible)
@@ -541,6 +631,9 @@ namespace CalendarOverlay
         }
     }
 
+    // ------------------------------------------------------------------------
+    // Shows the right‑click context menu for the tray icon.
+    // ------------------------------------------------------------------------
     void DesktopWindow::showContextMenu(int x, int y)
     {
         HMENU hMenu = CreatePopupMenu();
@@ -555,6 +648,10 @@ namespace CalendarOverlay
         }
     }
 
+    // ------------------------------------------------------------------------
+    // Launches the Java configuration GUI.
+    // Searches for CalendarApp.jar in the executable directory or in ..\dist.
+    // ------------------------------------------------------------------------
     void DesktopWindow::launchJavaGUI()
     {
         std::wstring javaPath = L"java";
@@ -597,6 +694,10 @@ namespace CalendarOverlay
         }
     }
 
+    // ------------------------------------------------------------------------
+    // Detects whether the desktop is currently visible (i.e., no maximised
+    // application is covering it). Checks the class name of the foreground window.
+    // ------------------------------------------------------------------------
     bool DesktopWindow::checkIfOnDesktop()
     {
         HWND fg = GetForegroundWindow();
@@ -604,6 +705,7 @@ namespace CalendarOverlay
             return true;
         char className[256];
         GetClassNameA(fg, className, sizeof(className));
+        // These are typical desktop / shell windows
         if (strcmp(className, "Progman") == 0 ||
             strcmp(className, "WorkerW") == 0 ||
             strcmp(className, "Shell_TrayWnd") == 0 ||
@@ -618,6 +720,9 @@ namespace CalendarOverlay
         return false;
     }
 
+    // ------------------------------------------------------------------------
+    // Shows or hides the overlay based on whether the desktop is active.
+    // ------------------------------------------------------------------------
     void DesktopWindow::updateWindowVisibilityBasedOnDesktop()
     {
         bool onDesktop = checkIfOnDesktop();
@@ -631,6 +736,9 @@ namespace CalendarOverlay
         }
     }
 
+    // ------------------------------------------------------------------------
+    // Creates a compatible DC and bitmap for double‑buffering.
+    // ------------------------------------------------------------------------
     void DesktopWindow::createDoubleBuffer(int width, int height)
     {
         cleanupDoubleBuffer();
@@ -649,6 +757,9 @@ namespace CalendarOverlay
         }
     }
 
+    // ------------------------------------------------------------------------
+    // Cleans up double‑buffer resources.
+    // ------------------------------------------------------------------------
     void DesktopWindow::cleanupDoubleBuffer()
     {
         if (doubleBufferBitmap)
@@ -665,6 +776,9 @@ namespace CalendarOverlay
         bufferHeight = 0;
     }
 
+    // ------------------------------------------------------------------------
+    // Resizes the double buffer if the window size changed.
+    // ------------------------------------------------------------------------
     void DesktopWindow::resizeDoubleBuffer(int width, int height)
     {
         if (width != bufferWidth || height != bufferHeight)
@@ -673,6 +787,9 @@ namespace CalendarOverlay
         }
     }
 
+    // ------------------------------------------------------------------------
+    // Public setter for window position – moves window and saves config.
+    // ------------------------------------------------------------------------
     void DesktopWindow::setPosition(int x, int y)
     {
         windowX = x;
@@ -687,6 +804,9 @@ namespace CalendarOverlay
         cfg.save();
     }
 
+    // ------------------------------------------------------------------------
+    // Public setter for window size – resizes window and updates renderer.
+    // ------------------------------------------------------------------------
     void DesktopWindow::setSize(int width, int height)
     {
         RECT workArea;
@@ -712,6 +832,9 @@ namespace CalendarOverlay
         cfg.save();
     }
 
+    // ------------------------------------------------------------------------
+    // Public setter for opacity – updates layered window attribute.
+    // ------------------------------------------------------------------------
     void DesktopWindow::setOpacity(float opacity)
     {
         alpha = static_cast<BYTE>(std::max(0.0f, std::min(1.0f, opacity)) * 255);
@@ -725,6 +848,9 @@ namespace CalendarOverlay
         cfg.save();
     }
 
+    // ------------------------------------------------------------------------
+    // Public setter for click‑through – updates window extended style.
+    // ------------------------------------------------------------------------
     void DesktopWindow::setClickThrough(bool enabled)
     {
         clickThrough = enabled;

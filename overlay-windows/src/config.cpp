@@ -1,5 +1,10 @@
+// ==================== config.cpp ====================
+// Implementation of the Config singleton.
+// Uses a simple JSON‑like file format (key‑value pairs) – no external JSON library.
+// The file is stored in the user's AppData folder.
+
 #include "config.h"
-#include <shlobj.h>
+#include <shlobj.h>        // For SHGetFolderPathA
 #include <iostream>
 #include <algorithm>
 #include <fstream>
@@ -9,50 +14,64 @@
 
 namespace CalendarOverlay
 {
+    // Constructor: determines the storage path and initialises critical section.
     Config::Config()
     {
         InitializeCriticalSection(&cs);
-        setDefaults();
+        setDefaults();   // Start with default values
+
         char appDataPath[MAX_PATH];
         if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, appDataPath)))
         {
             dataPath = std::string(appDataPath) + "\\DesktopCalendar\\";
             configPath = dataPath + "overlay_config.json";
-            CreateDirectoryA(dataPath.c_str(), NULL);
+            CreateDirectoryA(dataPath.c_str(), NULL);   // Ensure folder exists
         }
         else
         {
+            // Fallback to current directory
             dataPath = ".\\data\\";
             configPath = ".\\overlay_config.json";
             CreateDirectoryA("data", NULL);
         }
     }
+
     Config::~Config()
     {
         DeleteCriticalSection(&cs);
     }
+
+    // Singleton instance – thread‑safe in C++11 (static initialisation).
     Config &Config::getInstance()
     {
         static Config instance;
         return instance;
     }
+
+    // Loads the configuration file.
+    // The file is a simple JSON‑like object, parsed line by line.
+    // Returns true if the file existed and was successfully read.
     bool Config::load()
     {
         EnterCriticalSection(&cs);
         std::ifstream file(configPath);
         if (!file.is_open())
         {
-            createDefaultConfig();
+            createDefaultConfig();   // No file – create one with defaults
             LeaveCriticalSection(&cs);
             return false;
         }
+
         std::string line;
         bool inConfig = false;
         int braceCount = 0;
+
         while (std::getline(file, line))
         {
+            // Remove whitespace for easier detection of braces
             std::string trimmed = line;
             trimmed.erase(std::remove_if(trimmed.begin(), trimmed.end(), isspace), trimmed.end());
+
             if (trimmed.find("{") != std::string::npos)
             {
                 braceCount++;
@@ -63,11 +82,13 @@ namespace CalendarOverlay
                 braceCount--;
                 if (braceCount == 0)
                 {
-                    break;
+                    break;   // End of object
                 }
             }
+
             if (inConfig)
             {
+                // Look for a quoted key
                 std::string key;
                 std::string valueStr;
                 size_t quote1 = line.find('"');
@@ -89,8 +110,11 @@ namespace CalendarOverlay
                                     valueEnd = line.length();
                                 }
                                 valueStr = line.substr(valueStart, valueEnd - valueStart);
+                                // Remove quotes and trailing commas
                                 valueStr.erase(std::remove(valueStr.begin(), valueStr.end(), '\"'), valueStr.end());
                                 valueStr.erase(std::remove(valueStr.begin(), valueStr.end(), ','), valueStr.end());
+
+                                // Assign to the appropriate field
                                 if (key == "enabled")
                                 {
                                     config.enabled = (valueStr == "true");
@@ -153,6 +177,8 @@ namespace CalendarOverlay
         LeaveCriticalSection(&cs);
         return true;
     }
+
+    // Saves the current configuration to the JSON file.
     bool Config::save()
     {
         EnterCriticalSection(&cs);
@@ -162,6 +188,7 @@ namespace CalendarOverlay
             LeaveCriticalSection(&cs);
             return false;
         }
+
         file << "{\n";
         file << "  \"enabled\": " << (config.enabled ? "true" : "false") << ",\n";
         file << "  \"positionX\": " << config.positionX << ",\n";
@@ -177,10 +204,13 @@ namespace CalendarOverlay
         file << "  \"textColor\": \"" << std::hex << std::setw(8) << std::setfill('0') << config.textColor << "\",\n";
         file << "  \"clickThrough\": " << (config.clickThrough ? "true" : "false") << "\n";
         file << "}\n";
+
         file.close();
         LeaveCriticalSection(&cs);
         return true;
     }
+
+    // Overload of save() that updates the in‑memory config first.
     void Config::save(const OverlayConfig &newConfig)
     {
         EnterCriticalSection(&cs);
@@ -207,39 +237,55 @@ namespace CalendarOverlay
         }
         LeaveCriticalSection(&cs);
     }
+
+    // Creates a default configuration file by resetting to defaults and saving.
     void Config::createDefaultConfig()
     {
         setDefaults();
         save();
     }
+
+    // Resets the in‑memory config to the default constructor values.
     void Config::setDefaults()
     {
-        config = OverlayConfig();
+        config = OverlayConfig();   // uses the struct's default constructor
     }
+
+    // Setter for click‑through mode – updates memory and saves immediately.
     void Config::setClickThrough(bool enabled)
     {
         EnterCriticalSection(&cs);
         config.clickThrough = enabled;
         LeaveCriticalSection(&cs);
+        save();   // Save to disk after change
     }
+
+    // Setter for window position.
     void Config::setPosition(int x, int y)
     {
         EnterCriticalSection(&cs);
         config.positionX = x;
         config.positionY = y;
         LeaveCriticalSection(&cs);
+        save();
     }
+
+    // Setter for window size.
     void Config::setSize(int width, int height)
     {
         EnterCriticalSection(&cs);
         config.width = width;
         config.height = height;
         LeaveCriticalSection(&cs);
+        save();
     }
+
+    // Setter for opacity.
     void Config::setOpacity(float opacity)
     {
         EnterCriticalSection(&cs);
         config.opacity = opacity;
         LeaveCriticalSection(&cs);
+        save();
     }
 }

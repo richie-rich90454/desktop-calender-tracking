@@ -1,9 +1,9 @@
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
+// ==================== main.cpp ====================
+// Entry point for the Calendar Overlay application.
+// Handles command line arguments, single instance check,
+// and runs either as a service (silent mode) or as a normal windowed app.
+
+// Include necessary headers and define resource IDs.
 #include <windows.h>
 #undef __in
 #undef __out
@@ -15,10 +15,21 @@
 #include <vector>
 #include <string>
 
+// Resource identifiers (must match resource.h)
+#define IDI_APP_ICON 101
+#define IDR_TRAY_MENU 102
+#define IDM_EXIT 1001
+#define IDM_SHOW 1002
+#define IDM_HIDE 1003
+#define IDM_REFRESH 1004
+#define IDM_SETTINGS 1005
+
 namespace CalendarOverlay
 {
     std::atomic<bool> running(true);
     std::unique_ptr<DesktopWindow> mainWindow;
+
+    // Console control handler for Ctrl+C / close events.
     BOOL WINAPI consoleHandler(DWORD signal)
     {
         if (signal == CTRL_C_EVENT || signal == CTRL_CLOSE_EVENT)
@@ -28,16 +39,22 @@ namespace CalendarOverlay
         }
         return FALSE;
     }
+
+    // Hides the console window.
     void hideConsole()
     {
         HWND console = GetConsoleWindow();
         ShowWindow(console, SW_HIDE);
     }
+
+    // Shows the console window.
     void showConsole()
     {
         HWND console = GetConsoleWindow();
         ShowWindow(console, SW_SHOW);
     }
+
+    // Checks if another instance is already running using a named mutex.
     bool isAlreadyRunning()
     {
         HANDLE mutex = CreateMutexW(NULL, TRUE, L"CalendarOverlayInstance");
@@ -48,14 +65,18 @@ namespace CalendarOverlay
         }
         return false;
     }
+
+    // Runs as a background service (with console for logging).
     void runAsService()
     {
-        AllocConsole();
+        AllocConsole();   // Allocate a console for output
         freopen("CONOUT$", "w", stdout);
         freopen("CONOUT$", "w", stderr);
         std::cout << "Calendar Overlay Service Started" << std::endl;
         std::cout << "Press Ctrl+C to exit" << std::endl;
+
         SetConsoleCtrlHandler(consoleHandler, TRUE);
+
         mainWindow = std::make_unique<DesktopWindow>();
         if (mainWindow->create())
         {
@@ -69,16 +90,20 @@ namespace CalendarOverlay
         }
         std::cout << "Calendar Overlay Service Stopped" << std::endl;
     }
+
+    // Runs with a visible window (and optionally a console).
     void runWithGUI(bool showConsoleWindow)
     {
         if (!showConsoleWindow)
         {
-            hideConsole();
+            hideConsole();   // Hide the console if not requested
         }
+
         if (isAlreadyRunning())
         {
             return;
         }
+
         mainWindow = std::make_unique<DesktopWindow>();
         if (!mainWindow->create())
         {
@@ -86,7 +111,10 @@ namespace CalendarOverlay
                         L"Error", MB_ICONERROR | MB_OK);
             return;
         }
+
         mainWindow->show();
+
+        // Standard message loop.
         MSG msg = {};
         while (GetMessage(&msg, NULL, 0, 0))
         {
@@ -94,6 +122,8 @@ namespace CalendarOverlay
             DispatchMessage(&msg);
         }
     }
+
+    // Structure to hold parsed command line arguments.
     struct CommandLineArgs
     {
         bool silent = false;
@@ -103,6 +133,8 @@ namespace CalendarOverlay
         int width = -1, height = -1;
         float opacity = -1.0f;
     };
+
+    // Parses command line arguments (ANSI version, but we convert from wide later).
     CommandLineArgs parseCommandLine(int argc, char *argv[])
     {
         CommandLineArgs args;
@@ -144,6 +176,8 @@ namespace CalendarOverlay
         }
         return args;
     }
+
+    // Prints help text.
     void printHelp()
     {
         std::cout << R"(
@@ -182,12 +216,19 @@ Controls:
 )" << std::endl;
     }
 }
+
+// ------------------------------------------------------------------------
+// WinMain – entry point for Windows GUI applications.
+// Converts command line to UTF-8 and dispatches to the appropriate mode.
+// ------------------------------------------------------------------------
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
     int argc;
     LPWSTR *argv = CommandLineToArgvW(GetCommandLineW(), &argc);
     std::vector<std::string> argsStr;
     std::vector<char *> argsChar;
+
+    // Convert wide arguments to UTF-8 strings.
     for (int i = 0; i < argc; i++)
     {
         int size = WideCharToMultiByte(CP_UTF8, 0, argv[i], -1, NULL, 0, NULL, NULL);
@@ -199,12 +240,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     {
         argsChar.push_back(&arg[0]);
     }
+
     auto cmdArgs = CalendarOverlay::parseCommandLine(argsChar.size(), argsChar.data());
+
     if (cmdArgs.help)
     {
         CalendarOverlay::printHelp();
+        LocalFree(argv);
         return 0;
     }
+
     if (cmdArgs.silent)
     {
         CalendarOverlay::runAsService();
@@ -213,6 +258,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     {
         CalendarOverlay::runWithGUI(cmdArgs.console);
     }
+
     LocalFree(argv);
     return 0;
 }

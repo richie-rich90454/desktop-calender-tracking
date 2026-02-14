@@ -1,3 +1,10 @@
+// ==================== calendar_render.cpp ====================
+// Implementation of the calendar overlay renderer. Handles all drawing,
+// event filtering, scrolling, and audio UI integration.
+// Uses Direct2D for hardware-accelerated rendering and DirectWrite for text.
+// The audio panel is drawn at the bottom; volume control has been removed
+// as per project requirements – only progress bar and track navigation remain.
+
 #include "calendar_render.h"
 #include <wincodec.h>
 #include <sstream>
@@ -12,7 +19,9 @@ namespace fs = std::filesystem;
 
 namespace CalendarOverlay
 {
-
+    // ------------------------------------------------------------------------
+    // Constructor: initializes member variables and sets up critical section.
+    // ------------------------------------------------------------------------
     CalendarRenderer::CalendarRenderer()
         : d2dFactory(nullptr), renderTarget(nullptr),
           textBrush(nullptr), backgroundBrush(nullptr), eventBrush(nullptr),
@@ -26,14 +35,25 @@ namespace CalendarOverlay
         InitializeCriticalSection(&cs);
         lastMousePos.x = 0;
         lastMousePos.y = 0;
+
+        // Create audio engine and file manager.
         audioPlayer = std::make_unique<Audio::AudioPlayerEngine>();
         audioFileManager = std::make_unique<Audio::AudioFileManager>();
+
+        // Initial scan of audio files from the user's audio folder.
         scanAudioFiles();
+
+        // Set up callback for when a track ends naturally – we post a message to the window
+        // so that the main thread can advance to the next track (or handle UI updates).
         audioPlayer->setOnTrackEnd([this]()
                                    { PostMessage(hwnd, WM_APP + 2, 0, 0); });
+
         isDraggingAudioProgress = false;
     }
 
+    // ------------------------------------------------------------------------
+    // Destructor: clean up audio and rendering resources.
+    // ------------------------------------------------------------------------
     CalendarRenderer::~CalendarRenderer()
     {
         if (audioPlayer)
@@ -45,6 +65,10 @@ namespace CalendarOverlay
         DeleteCriticalSection(&cs);
     }
 
+    // ------------------------------------------------------------------------
+    // updateViewportLayout: Recalculates all size values as percentages of
+    // the current window size. Called on resize and DPI change.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::updateViewportLayout()
     {
         float w = renderSize.width;
@@ -53,6 +77,7 @@ namespace CalendarOverlay
         if (w <= 0 || h <= 0)
             return;
 
+        // All sizes are expressed as fractions of the window size.
         vpPadding = minDim * 0.02f;
         vpEventHeight = h * 0.06f;
         vpTimeWidth = w * 0.15f;
@@ -63,6 +88,7 @@ namespace CalendarOverlay
         vpFontSize = h * 0.025f;
         vpLineThickness = minDim * 0.001f;
 
+        // Clamp font size to readable range.
         if (vpFontSize < 9.0f)
             vpFontSize = 9.0f;
         if (vpFontSize > 24.0f)
@@ -71,6 +97,7 @@ namespace CalendarOverlay
         if (!writeFactory)
             return;
 
+        // Recreate text formats with the new font size.
         if (textFormat)
         {
             textFormat->Release();
@@ -87,16 +114,20 @@ namespace CalendarOverlay
             timeFormat = nullptr;
         }
 
+        // Normal text for event titles.
         writeFactory->CreateTextFormat(L"Segoe UI", NULL,
                                        DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
                                        DWRITE_FONT_STRETCH_NORMAL, vpFontSize, L"en-us", &textFormat);
+        // Bold/slightly larger for date header.
         writeFactory->CreateTextFormat(L"Segoe UI", NULL,
                                        DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL,
                                        DWRITE_FONT_STRETCH_NORMAL, vpFontSize + 2.0f, L"en-us", &titleFormat);
+        // Italic/smaller for time stamps.
         writeFactory->CreateTextFormat(L"Segoe UI", NULL,
                                        DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_ITALIC,
                                        DWRITE_FONT_STRETCH_NORMAL, vpFontSize - 2.0f, L"en-us", &timeFormat);
 
+        // Set common alignment properties.
         if (textFormat)
         {
             textFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
@@ -115,6 +146,10 @@ namespace CalendarOverlay
         }
     }
 
+    // ------------------------------------------------------------------------
+    // initialize: Creates D2D factory and initial device resources.
+    // Called once at startup.
+    // ------------------------------------------------------------------------
     bool CalendarRenderer::initialize(HWND window)
     {
         hwnd = window;
@@ -131,6 +166,10 @@ namespace CalendarOverlay
         return createDeviceResources();
     }
 
+    // ------------------------------------------------------------------------
+    // createDeviceResources: Creates render target, brushes, and sets up initial sizes.
+    // Called after initialization and after D2DERR_RECREATE_TARGET.
+    // ------------------------------------------------------------------------
     bool CalendarRenderer::createDeviceResources()
     {
         if (!d2dFactory || !hwnd)
@@ -147,6 +186,7 @@ namespace CalendarOverlay
         if (FAILED(hr))
             return false;
 
+        // Detect DPI (Windows 10 provides GetDpiForWindow, fallback to system DPI).
         UINT dpiX = 96, dpiY = 96;
         HMODULE user32 = GetModuleHandle(L"user32.dll");
         if (user32)
@@ -167,8 +207,10 @@ namespace CalendarOverlay
         renderTarget->SetDpi((FLOAT)dpiX, (FLOAT)dpiY);
         dpiScaleX = dpiX / 96.0f;
         dpiScaleY = dpiY / 96.0f;
+
         if (renderTarget)
         {
+            // Create brushes with current config colors.
             renderTarget->CreateSolidColorBrush(toColorF(config.textColor), &textBrush);
             renderTarget->CreateSolidColorBrush(toColorF(config.backgroundColor), &backgroundBrush);
             renderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::LightBlue), &eventBrush);
@@ -178,6 +220,10 @@ namespace CalendarOverlay
         return true;
     }
 
+    // ------------------------------------------------------------------------
+    // updateDPI: Called when DPI changes (e.g., window moved to another monitor).
+    // Adjusts the render target DPI and recalculates layout.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::updateDPI(UINT dpiX, UINT dpiY)
     {
         EnterCriticalSection(&cs);
@@ -192,6 +238,10 @@ namespace CalendarOverlay
         LeaveCriticalSection(&cs);
     }
 
+    // ------------------------------------------------------------------------
+    // releaseDeviceResources: Releases all device-dependent resources.
+    // Called before recreating them.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::releaseDeviceResources()
     {
         if (textBrush)
@@ -216,6 +266,10 @@ namespace CalendarOverlay
         }
     }
 
+    // ------------------------------------------------------------------------
+    // resize: Called when the window is resized. Updates the render target
+    // size and recalculates layout.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::resize(int width, int height)
     {
         EnterCriticalSection(&cs);
@@ -228,6 +282,10 @@ namespace CalendarOverlay
         LeaveCriticalSection(&cs);
     }
 
+    // ------------------------------------------------------------------------
+    // render: Main drawing entry point. Locks the critical section and
+    // draws the entire overlay.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::render()
     {
         EnterCriticalSection(&cs);
@@ -239,14 +297,16 @@ namespace CalendarOverlay
 
         renderTarget->BeginDraw();
         renderTarget->SetTransform(D2D1::Matrix3x2F::Identity());
-        renderTarget->Clear(D2D1::ColorF(0, 0, 0, 0));
+        renderTarget->Clear(D2D1::ColorF(0, 0, 0, 0)); // transparent background (overlay)
 
         if (config.wallpaperMode)
         {
+            // In wallpaper mode, we draw a semi-transparent panel with condensed info.
             drawWallpaperContent();
         }
         else
         {
+            // Normal overlay: background panel, header, event list, audio controls, current time.
             drawBackground();
             drawDateHeader();
             drawEvents();
@@ -266,6 +326,9 @@ namespace CalendarOverlay
         LeaveCriticalSection(&cs);
     }
 
+    // ------------------------------------------------------------------------
+    // drawBackground: Draws the main rounded rectangle background.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::drawBackground()
     {
         if (!backgroundBrush || !renderTarget)
@@ -276,12 +339,16 @@ namespace CalendarOverlay
             vpCornerRadius, vpCornerRadius);
         renderTarget->FillRoundedRectangle(roundedRect, backgroundBrush);
 
+        // Thin white border.
         ID2D1SolidColorBrush *borderBrush = nullptr;
         renderTarget->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.2f), &borderBrush);
         renderTarget->DrawRoundedRectangle(roundedRect, borderBrush, vpLineThickness);
         borderBrush->Release();
     }
 
+    // ------------------------------------------------------------------------
+    // drawDateHeader: Draws the current date and a separator line.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::drawDateHeader()
     {
         if (!textBrush || !titleFormat || !renderTarget)
@@ -303,6 +370,7 @@ namespace CalendarOverlay
                                 static_cast<UINT32>(wss.str().length()),
                                 titleFormat, textRect, textBrush);
 
+        // Draw separator line.
         ID2D1SolidColorBrush *lineBrush = nullptr;
         renderTarget->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.3f), &lineBrush);
         float lineY = vpPadding + 35.0f;
@@ -312,6 +380,9 @@ namespace CalendarOverlay
         lineBrush->Release();
     }
 
+    // ------------------------------------------------------------------------
+    // drawEvents: Draws the list of upcoming events, handling scrolling.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::drawEvents()
     {
         if (!textBrush || !textFormat || !renderTarget)
@@ -319,7 +390,7 @@ namespace CalendarOverlay
 
         float startY = vpPadding + 50.0f;
         float currentY = startY;
-        auto upcomingEvents = getUpcomingEvents(24);
+        auto upcomingEvents = getUpcomingEvents(24); // events within next 24h
         totalEventsHeight = static_cast<float>(upcomingEvents.size()) * (vpEventHeight + 5.0f);
         visibleHeight = renderSize.height - startY - vpPadding - 25.0f;
 
@@ -341,6 +412,7 @@ namespace CalendarOverlay
         float visibleTop = startY;
         float visibleBottom = renderSize.height - vpPadding - 25.0f;
 
+        // Draw only events that are (partially) visible to improve performance.
         for (const auto &event : upcomingEvents)
         {
             float eventTop = currentY;
@@ -355,6 +427,10 @@ namespace CalendarOverlay
         }
     }
 
+    // ------------------------------------------------------------------------
+    // drawEvent: Draws a single event box at the given y position.
+    // Colors are based on event state (past, ongoing, soon, normal).
+    // ------------------------------------------------------------------------
     void CalendarRenderer::drawEvent(const CalendarEvent &event, float yPos)
     {
         if (!eventBrush || !textBrush || !textFormat || !timeFormat || !renderTarget)
@@ -374,18 +450,22 @@ namespace CalendarOverlay
         D2D1_COLOR_F eventColor;
         if (timeSinceEnd > 0)
         {
+            // Past event – gray.
             eventColor = D2D1::ColorF(0.7f, 0.7f, 0.7f, 0.7f);
         }
         else if (nowMs >= event.startTime && nowMs <= event.endTime)
         {
+            // Currently happening – red.
             eventColor = D2D1::ColorF(1.0f, 0.0f, 0.0f, 0.7f);
         }
         else if (timeUntilStart > 0 && timeUntilStart <= 3600000)
         {
+            // Starting within the next hour – orange.
             eventColor = D2D1::ColorF(1.0f, 0.5f, 0.0f, 0.7f);
         }
         else
         {
+            // Future event – use its own color.
             eventColor = toColorF(event.colorR, event.colorG, event.colorB, 0.7f);
         }
 
@@ -395,6 +475,7 @@ namespace CalendarOverlay
         eventBrush->SetColor(eventColor);
         renderTarget->FillRoundedRectangle(eventRect, eventBrush);
 
+        // Draw event time.
         auto eventTime = std::chrono::system_clock::from_time_t(event.startTime / 1000);
         auto eventTimeT = std::chrono::system_clock::to_time_t(eventTime);
         std::tm eventTm;
@@ -410,6 +491,7 @@ namespace CalendarOverlay
                                 static_cast<UINT32>(timeStream.str().length()),
                                 timeFormat, timeRect, textBrush);
 
+        // Draw event title (convert from char array to wstring).
         std::wstring title;
         for (int i = 0; i < 256 && event.title[i] != '\0'; i++)
             title += static_cast<wchar_t>(event.title[i]);
@@ -423,6 +505,9 @@ namespace CalendarOverlay
                                 textFormat, titleRect, textBrush);
     }
 
+    // ------------------------------------------------------------------------
+    // drawScrollbar: Draws a vertical scrollbar when needed.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::drawScrollbar()
     {
         if (!renderTarget || !needsScrollbar)
@@ -433,6 +518,7 @@ namespace CalendarOverlay
         float scrollAreaBottom = renderSize.height - vpPadding - 25.0f;
         float scrollAreaHeight = scrollAreaBottom - scrollAreaTop;
 
+        // Track.
         ID2D1SolidColorBrush *trackBrush = nullptr;
         renderTarget->CreateSolidColorBrush(D2D1::ColorF(0.3f, 0.3f, 0.3f, 0.3f), &trackBrush);
         D2D1_RECT_F trackRect = D2D1::RectF(
@@ -441,6 +527,7 @@ namespace CalendarOverlay
         renderTarget->FillRectangle(trackRect, trackBrush);
         trackBrush->Release();
 
+        // Thumb – size proportional to visible area.
         float thumbHeight = (visibleHeight / totalEventsHeight) * scrollAreaHeight;
         if (thumbHeight < 20.0f)
             thumbHeight = 20.0f;
@@ -460,12 +547,16 @@ namespace CalendarOverlay
         renderTarget->FillRectangle(thumbRect, thumbBrush);
         thumbBrush->Release();
 
+        // Thumb border.
         ID2D1SolidColorBrush *thumbBorderBrush = nullptr;
         renderTarget->CreateSolidColorBrush(D2D1::ColorF(0.8f, 0.8f, 0.8f, 0.8f), &thumbBorderBrush);
         renderTarget->DrawRectangle(thumbRect, thumbBorderBrush, vpLineThickness);
         thumbBorderBrush->Release();
     }
 
+    // ------------------------------------------------------------------------
+    // drawCurrentTime: Draws the current time at the bottom (above audio controls).
+    // ------------------------------------------------------------------------
     void CalendarRenderer::drawCurrentTime()
     {
         if (!textBrush || !timeFormat || !renderTarget)
@@ -494,7 +585,9 @@ namespace CalendarOverlay
     }
 
     // ---------------------------------------------------------------------
-    // drawAudioControls – NO volume slider, only progress + buttons + track name
+    // drawAudioControls – Draws the audio control panel at the bottom.
+    // Contains: progress bar, play/pause/prev/next buttons, track name.
+    // Volume slider has been removed as per project requirements.
     // ---------------------------------------------------------------------
     void CalendarRenderer::drawAudioControls()
     {
@@ -515,6 +608,7 @@ namespace CalendarOverlay
         renderTarget->FillRoundedRectangle(bgRect, controlsBgBrush);
         controlsBgBrush->Release();
 
+        // Border.
         ID2D1SolidColorBrush *borderBrush = nullptr;
         renderTarget->CreateSolidColorBrush(D2D1::ColorF(0.3f, 0.3f, 0.3f, 0.8f), &borderBrush);
         renderTarget->DrawRoundedRectangle(bgRect, borderBrush, vpLineThickness);
@@ -525,6 +619,7 @@ namespace CalendarOverlay
         float progressBarHeight = 5.0f;
         float progressBarWidth = controlsWidth - 2 * vpPadding;
 
+        // Background track.
         D2D1_RECT_F progressTrackRect = D2D1::RectF(
             controlsLeft + vpPadding, progressBarY,
             controlsLeft + vpPadding + progressBarWidth, progressBarY + progressBarHeight);
@@ -533,6 +628,7 @@ namespace CalendarOverlay
         renderTarget->FillRectangle(progressTrackRect, progressTrackBrush);
         progressTrackBrush->Release();
 
+        // Calculate progress based on current position.
         float progress = 0.0f;
         if (audioPlayer->isPlaying() || audioPlayer->isPaused())
         {
@@ -586,13 +682,13 @@ namespace CalendarOverlay
 
         currentX += buttonSize + buttonSpacing;
 
-        // ----- Play/Pause -----
+        // ----- Play/Pause (icon changes based on state) -----
         D2D1_RECT_F playPauseRect = D2D1::RectF(currentX, buttonY, currentX + buttonSize, buttonY + buttonSize);
         renderTarget->FillRectangle(playPauseRect, buttonBgBrush);
         renderTarget->DrawRectangle(playPauseRect, buttonBorderBrush, vpLineThickness);
         if (audioPlayer->isPlaying())
         {
-            // Pause: two vertical bars
+            // Pause: two vertical bars.
             float barWidth = buttonSize * 0.2f;
             float barSpacing = buttonSize * 0.2f;
             float barHeight = buttonSize * 0.5f;
@@ -607,7 +703,7 @@ namespace CalendarOverlay
         }
         else
         {
-            // Play: right triangle
+            // Play: right triangle.
             ID2D1PathGeometry *pPlayGeo = nullptr;
             d2dFactory->CreatePathGeometry(&pPlayGeo);
             ID2D1GeometrySink *pSinkPlay = nullptr;
@@ -661,11 +757,13 @@ namespace CalendarOverlay
         }
         else
         {
+            // Truncate if too long.
             float maxWidth = (controlsLeft + controlsWidth - vpPadding) - currentX;
             size_t maxChars = static_cast<size_t>(maxWidth / (vpFontSize * 0.5f));
             if (trackName.length() > maxChars && maxChars > 5)
                 trackName = trackName.substr(0, maxChars - 3) + L"...";
         }
+        // Show error if any.
         std::wstring errorMsg = audioPlayer->getLastError();
         if (!errorMsg.empty())
         {
@@ -679,6 +777,9 @@ namespace CalendarOverlay
                                 textFormat, trackNameRect, textBrush);
     }
 
+    // ------------------------------------------------------------------------
+    // drawWallpaperContent: Simplified drawing for wallpaper mode (semi-transparent panel).
+    // ------------------------------------------------------------------------
     void CalendarRenderer::drawWallpaperContent()
     {
         if (!textBrush || !titleFormat || !textFormat || !timeFormat || !renderTarget || !eventBrush)
@@ -689,12 +790,14 @@ namespace CalendarOverlay
             cornerPadding, cornerPadding,
             renderSize.width - cornerPadding, renderSize.height - cornerPadding);
 
+        // Semi-transparent background.
         ID2D1SolidColorBrush *bgBrush = nullptr;
         renderTarget->CreateSolidColorBrush(D2D1::ColorF(0.1f, 0.1f, 0.1f, 0.7f), &bgBrush);
         D2D1_ROUNDED_RECT bgRect = D2D1::RoundedRect(contentRect, vpCornerRadius, vpCornerRadius);
         renderTarget->FillRoundedRectangle(bgRect, bgBrush);
         bgBrush->Release();
 
+        // Date.
         auto now = std::chrono::system_clock::now();
         auto nowTime = std::chrono::system_clock::to_time_t(now);
         std::tm localTime;
@@ -708,6 +811,7 @@ namespace CalendarOverlay
                                 static_cast<UINT32>(dateStream.str().length()),
                                 titleFormat, dateRect, textBrush);
 
+        // Time.
         std::wstringstream timeStream;
         timeStream << std::put_time(&localTime, L"%I:%M %p");
         D2D1_RECT_F timeRect = D2D1::RectF(
@@ -717,6 +821,7 @@ namespace CalendarOverlay
                                 static_cast<UINT32>(timeStream.str().length()),
                                 titleFormat, timeRect, textBrush);
 
+        // Show a few upcoming events with status dots.
         auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
         float eventStartY = contentRect.top + 80.0f;
         float eventSpacing = 25.0f;
@@ -727,6 +832,7 @@ namespace CalendarOverlay
             long long timeUntilStart = event.startTime - nowMs;
             long long timeSinceEnd = nowMs - event.endTime;
 
+            // Status dot.
             float dotSize = 6.0f;
             D2D1_ELLIPSE statusDot = D2D1::Ellipse(
                 D2D1::Point2F(contentRect.left + vpPadding, eventStartY + vpPadding * 0.5f),
@@ -750,6 +856,7 @@ namespace CalendarOverlay
             }
             renderTarget->FillEllipse(statusDot, eventBrush);
 
+            // Event time.
             auto eventTime = std::chrono::system_clock::from_time_t(event.startTime / 1000);
             auto eventTimeT = std::chrono::system_clock::to_time_t(eventTime);
             std::tm eventTm;
@@ -763,6 +870,7 @@ namespace CalendarOverlay
                                     static_cast<UINT32>(eventTimeStream.str().length()),
                                     timeFormat, eventTimeRect, textBrush);
 
+            // Event title (truncated).
             std::wstring title;
             for (int j = 0; j < 256 && event.title[j] != '\0'; j++)
                 title += static_cast<wchar_t>(event.title[j]);
@@ -790,6 +898,9 @@ namespace CalendarOverlay
         }
     }
 
+    // ------------------------------------------------------------------------
+    // setEvents: Updates the event list and resets scroll.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::setEvents(const std::vector<CalendarEvent> &newEvents)
     {
         EnterCriticalSection(&cs);
@@ -798,6 +909,9 @@ namespace CalendarOverlay
         LeaveCriticalSection(&cs);
     }
 
+    // ------------------------------------------------------------------------
+    // setConfig: Applies new configuration (colors) and updates brushes.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::setConfig(const OverlayConfig &newConfig)
     {
         EnterCriticalSection(&cs);
@@ -810,6 +924,9 @@ namespace CalendarOverlay
         LeaveCriticalSection(&cs);
     }
 
+    // ------------------------------------------------------------------------
+    // cleanup: Releases all DirectX resources.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::cleanup()
     {
         releaseDeviceResources();
@@ -825,6 +942,9 @@ namespace CalendarOverlay
         }
     }
 
+    // ------------------------------------------------------------------------
+    // Color conversion helpers.
+    // ------------------------------------------------------------------------
     D2D1_COLOR_F CalendarRenderer::toColorF(uint32_t color) const
     {
         float a = ((color >> 24) & 0xFF) / 255.0f;
@@ -839,12 +959,15 @@ namespace CalendarOverlay
         return D2D1::ColorF(r / 255.0f, g / 255.0f, b / 255.0f, a);
     }
 
+    // ------------------------------------------------------------------------
+    // getUpcomingEvents: Returns events that are not too far in the past/future.
+    // ------------------------------------------------------------------------
     std::vector<CalendarEvent> CalendarRenderer::getUpcomingEvents(int hours) const
     {
         std::vector<CalendarEvent> upcoming;
         auto now = std::chrono::system_clock::now();
         auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
-        auto pastCutoff = nowMs - (12 * 3600 * 1000);
+        auto pastCutoff = nowMs - (12 * 3600 * 1000);  // show up to 12h past
         auto futureCutoff = nowMs + (hours * 3600 * 1000);
 
         EnterCriticalSection(&cs);
@@ -855,6 +978,7 @@ namespace CalendarOverlay
                 upcoming.push_back(event);
             }
         }
+        // Sort chronologically.
         std::sort(upcoming.begin(), upcoming.end(),
                   [](const CalendarEvent &a, const CalendarEvent &b)
                   { return a.startTime < b.startTime; });
@@ -862,6 +986,9 @@ namespace CalendarOverlay
         return upcoming;
     }
 
+    // ------------------------------------------------------------------------
+    // Mouse wheel handler: scrolls the event list.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::handleMouseWheel(float delta)
     {
         EnterCriticalSection(&cs);
@@ -879,6 +1006,9 @@ namespace CalendarOverlay
         LeaveCriticalSection(&cs);
     }
 
+    // ------------------------------------------------------------------------
+    // handleMouseDown: Processes left button down – checks audio controls and scrollbar.
+    // ------------------------------------------------------------------------
     bool CalendarRenderer::handleMouseDown(int x, int y)
     {
         EnterCriticalSection(&cs);
@@ -900,14 +1030,14 @@ namespace CalendarOverlay
                 dip.right * scaleX, dip.bottom * scaleY);
         };
 
-        // ----- Audio controls -----
+        // ----- Audio controls hit testing -----
         if (!handled && audioControlsVisible && audioPlayer)
         {
             float controlsTop = renderSize.height - vpAudioControlsHeight - 5.0f;
             float controlsWidth = renderSize.width - 2 * vpPadding;
             float controlsLeft = vpPadding;
 
-            // Progress bar
+            // Progress bar.
             float progressBarY = controlsTop + vpPadding * 0.5f;
             float progressBarHeight = 5.0f;
             float progressBarWidth = controlsWidth - 2 * vpPadding;
@@ -921,17 +1051,17 @@ namespace CalendarOverlay
                 long seekPos = (long)(t * audioPlayer->getDuration());
                 audioPlayer->seek(seekPos);
                 handled = true;
-                isDraggingAudioProgress = true;
+                isDraggingAudioProgress = true;  // start drag tracking
             }
 
-            // Buttons row
+            // Buttons row.
             float buttonRowY = progressBarY + progressBarHeight + vpPadding * 0.5f;
             float buttonSize = vpButtonSize;
             float buttonSpacing = vpPadding * 0.5f;
             float currentXDip = controlsLeft + vpPadding;
             float buttonYDip = buttonRowY;
 
-            // Prev
+            // Previous button.
             D2D1_RECT_F prevDip = D2D1::RectF(currentXDip, buttonYDip,
                                               currentXDip + buttonSize, buttonYDip + buttonSize);
             D2D1_RECT_F prevPhys = toPhys(prevDip);
@@ -942,7 +1072,7 @@ namespace CalendarOverlay
             }
             currentXDip += buttonSize + buttonSpacing;
 
-            // Play/Pause
+            // Play/Pause button.
             D2D1_RECT_F playDip = D2D1::RectF(currentXDip, buttonYDip,
                                               currentXDip + buttonSize, buttonYDip + buttonSize);
             D2D1_RECT_F playPhys = toPhys(playDip);
@@ -953,7 +1083,7 @@ namespace CalendarOverlay
             }
             currentXDip += buttonSize + buttonSpacing;
 
-            // Next
+            // Next button.
             D2D1_RECT_F nextDip = D2D1::RectF(currentXDip, buttonYDip,
                                               currentXDip + buttonSize, buttonYDip + buttonSize);
             D2D1_RECT_F nextPhys = toPhys(nextDip);
@@ -964,19 +1094,23 @@ namespace CalendarOverlay
             }
             currentXDip += buttonSize + buttonSpacing;
 
-            // Volume bar – REMOVED
+            // Volume bar is intentionally not present.
         }
 
         LeaveCriticalSection(&cs);
         return handled;
     }
 
+    // ------------------------------------------------------------------------
+    // handleMouseMove: Updates scrollbar dragging or progress bar dragging.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::handleMouseMove(int x, int y)
     {
         EnterCriticalSection(&cs);
 
         if (isScrolling && needsScrollbar)
         {
+            // Scrollbar thumb dragging.
             float deltaY = static_cast<float>(y - lastMousePos.y);
             float scrollAreaHeight = (renderSize.height - vpPadding - 25.0f) -
                                      (vpPadding + 50.0f);
@@ -991,6 +1125,7 @@ namespace CalendarOverlay
         }
         else if (isDraggingAudioProgress && audioPlayer && audioControlsVisible && renderTarget)
         {
+            // Progress bar dragging.
             FLOAT dpiX, dpiY;
             renderTarget->GetDpi(&dpiX, &dpiY);
             float scaleX = dpiX / 96.0f;
@@ -1000,7 +1135,6 @@ namespace CalendarOverlay
             float controlsLeft = vpPadding;
             float controlsWidth = renderSize.width - 2 * vpPadding;
 
-            // --- Progress bar dragging ---
             float progressBarY = controlsTop + vpPadding * 0.5f;
             float progressBarHeight = 5.0f;
             float progressBarWidth = controlsWidth - 2 * vpPadding;
@@ -1020,7 +1154,6 @@ namespace CalendarOverlay
                 if (audioPlayer)
                     audioPlayer->seek(seekPos);
             }
-            // Volume bar dragging – REMOVED
         }
 
         if (hwnd)
@@ -1028,6 +1161,9 @@ namespace CalendarOverlay
         LeaveCriticalSection(&cs);
     }
 
+    // ------------------------------------------------------------------------
+    // handleMouseUp: Ends dragging.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::handleMouseUp(int x, int y)
     {
         EnterCriticalSection(&cs);
@@ -1036,6 +1172,9 @@ namespace CalendarOverlay
         LeaveCriticalSection(&cs);
     }
 
+    // ------------------------------------------------------------------------
+    // resetScroll: Resets scroll to top.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::resetScroll()
     {
         EnterCriticalSection(&cs);
@@ -1043,6 +1182,9 @@ namespace CalendarOverlay
         LeaveCriticalSection(&cs);
     }
 
+    // ------------------------------------------------------------------------
+    // isScrollingActive: Returns true if user is dragging the scrollbar.
+    // ------------------------------------------------------------------------
     bool CalendarRenderer::isScrollingActive() const
     {
         EnterCriticalSection(&cs);
@@ -1052,7 +1194,7 @@ namespace CalendarOverlay
     }
 
     // ---------------------------------------------------------------------
-    // toggleAudioPlayback – auto‑selects a track if none is chosen
+    // toggleAudioPlayback – auto‑selects a track if none is chosen.
     // ---------------------------------------------------------------------
     void CalendarRenderer::toggleAudioPlayback()
     {
@@ -1063,13 +1205,13 @@ namespace CalendarOverlay
             return;
         }
 
-        // --- refresh track list if empty ---
+        // Refresh track list if empty.
         if (audioTracks.empty())
         {
             scanAudioFiles();
         }
 
-        // --- auto‑select first track if none selected ---
+        // Auto‑select first track if none selected.
         if (currentAudioTrackIndex < 0 && !audioTracks.empty())
         {
             currentAudioTrackIndex = 0;
@@ -1096,6 +1238,9 @@ namespace CalendarOverlay
         LeaveCriticalSection(&cs);
     }
 
+    // ------------------------------------------------------------------------
+    // playNextTrack: Advances to the next track in the list.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::playNextTrack()
     {
         EnterCriticalSection(&cs);
@@ -1116,6 +1261,9 @@ namespace CalendarOverlay
         LeaveCriticalSection(&cs);
     }
 
+    // ------------------------------------------------------------------------
+    // playPreviousTrack: Goes to the previous track.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::playPreviousTrack()
     {
         EnterCriticalSection(&cs);
@@ -1136,8 +1284,9 @@ namespace CalendarOverlay
         LeaveCriticalSection(&cs);
     }
 
-    // setAudioVolume and getAudioVolume – REMOVED
-
+    // ------------------------------------------------------------------------
+    // isAudioPlaying: Returns true if audio is currently playing.
+    // ------------------------------------------------------------------------
     bool CalendarRenderer::isAudioPlaying() const
     {
         EnterCriticalSection(&cs);
@@ -1148,6 +1297,9 @@ namespace CalendarOverlay
         return playing;
     }
 
+    // ------------------------------------------------------------------------
+    // getCurrentAudioTrack: Returns the display name of the current track.
+    // ------------------------------------------------------------------------
     std::wstring CalendarRenderer::getCurrentAudioTrack() const
     {
         EnterCriticalSection(&cs);
@@ -1158,6 +1310,9 @@ namespace CalendarOverlay
         return trackName;
     }
 
+    // ------------------------------------------------------------------------
+    // scanAudioFiles: Refreshes the list of audio files from disk.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::scanAudioFiles()
     {
         EnterCriticalSection(&cs);
@@ -1170,6 +1325,9 @@ namespace CalendarOverlay
         LeaveCriticalSection(&cs);
     }
 
+    // ------------------------------------------------------------------------
+    // playAudioTrack: Starts playing the track at the given index.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::playAudioTrack(int index)
     {
         EnterCriticalSection(&cs);
@@ -1185,6 +1343,9 @@ namespace CalendarOverlay
         LeaveCriticalSection(&cs);
     }
 
+    // ------------------------------------------------------------------------
+    // stopAudioPlayback: Stops any currently playing audio.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::stopAudioPlayback()
     {
         EnterCriticalSection(&cs);
@@ -1193,6 +1354,9 @@ namespace CalendarOverlay
         LeaveCriticalSection(&cs);
     }
 
+    // ------------------------------------------------------------------------
+    // pauseAudioPlayback: Pauses playback.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::pauseAudioPlayback()
     {
         EnterCriticalSection(&cs);
@@ -1201,6 +1365,9 @@ namespace CalendarOverlay
         LeaveCriticalSection(&cs);
     }
 
+    // ------------------------------------------------------------------------
+    // resumeAudioPlayback: Resumes from pause.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::resumeAudioPlayback()
     {
         EnterCriticalSection(&cs);
@@ -1209,6 +1376,9 @@ namespace CalendarOverlay
         LeaveCriticalSection(&cs);
     }
 
+    // ------------------------------------------------------------------------
+    // seekAudio: Jumps to a position in the current track.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::seekAudio(long positionMillis)
     {
         EnterCriticalSection(&cs);
@@ -1216,6 +1386,11 @@ namespace CalendarOverlay
             audioPlayer->seek(positionMillis);
         LeaveCriticalSection(&cs);
     }
+
+    // ------------------------------------------------------------------------
+    // handleAudioTimer: Called periodically (e.g., every 50 ms) to process
+    // audio events and update the UI. Must be called on the main thread.
+    // ------------------------------------------------------------------------
     void CalendarRenderer::handleAudioTimer()
     {
         static DWORD lastCall = 0;

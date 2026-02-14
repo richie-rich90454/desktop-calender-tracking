@@ -1,3 +1,8 @@
+// ==================== event_manager.cpp ====================
+// Implementation of EventManager. Loads events from a JSON file
+// (written by the Java configuration app) and monitors the file
+// for changes. Also sets up shared memory for potential IPC.
+
 #include "event_manager.h"
 #include "config.h"
 #include <fstream>
@@ -5,22 +10,25 @@
 #include <iostream>
 #include <chrono>
 #include <algorithm>
-#include <sys/stat.h>
+#include <sys/stat.h>       // For _stat, file modification times
 #include <windows.h>
-#include <shlobj.h>
+#include <shlobj.h>          // For SHGetFolderPathA
 #include <json/json.hpp>
 
 using json = nlohmann::json;
 
 namespace CalendarOverlay
 {
+    // ------------------------------------------------------------------------
+    // Constructor: determines the events file path and sets up shared memory.
+    // ------------------------------------------------------------------------
     EventManager::EventManager() : initialized(false), fileWatcherThread(NULL),
                                    sharedMemory(NULL), sharedMemoryPtr(nullptr), stopWatcher(false)
     {
         lastUpdate = std::chrono::system_clock::now();
         lastFileModification = std::chrono::system_clock::time_point::min();
 
-        // Get the user's home directory
+        // Determine the user's home directory (profile) to locate the events file.
         char userProfile[MAX_PATH];
         if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_PROFILE, NULL, 0, userProfile)))
         {
@@ -28,19 +36,23 @@ namespace CalendarOverlay
         }
         else
         {
-            // Fallback to config path if can't get user profile
+            // Fallback: use the config data path (AppData\DesktopCalendar)
             Config &config = Config::getInstance();
             dataFilePath = config.getDataPath() + "calendar_events.json";
         }
 
-        setupSharedMemory();
+        setupSharedMemory();   // Create shared memory (unused currently)
     }
+
+    // ------------------------------------------------------------------------
+    // Destructor: stops the watcher thread and cleans up shared memory.
+    // ------------------------------------------------------------------------
     EventManager::~EventManager()
     {
         stopWatcher = true;
         if (fileWatcherThread)
         {
-            WaitForSingleObject(fileWatcherThread, 5000);
+            WaitForSingleObject(fileWatcherThread, 5000);   // Wait up to 5 seconds
             CloseHandle(fileWatcherThread);
         }
         if (sharedMemoryPtr)
@@ -52,12 +64,18 @@ namespace CalendarOverlay
             CloseHandle(sharedMemory);
         }
     }
+
+    // ------------------------------------------------------------------------
+    // initialize: attempts to load events from file and starts the watcher thread.
+    // ------------------------------------------------------------------------
     bool EventManager::initialize()
     {
         if (!loadEventsFromFile(dataFilePath))
         {
             std::cout << "Could not load events from file. Will try Java IPC." << std::endl;
         }
+
+        // Create a background thread that periodically checks the file for changes.
         fileWatcherThread = CreateThread(NULL, 0, fileWatcherProc, this, 0, NULL);
         if (!fileWatcherThread)
         {
@@ -67,6 +85,10 @@ namespace CalendarOverlay
         initialized = true;
         return true;
     }
+
+    // ------------------------------------------------------------------------
+    // update: called periodically (e.g., from main timer) to check for file changes.
+    // ------------------------------------------------------------------------
     void EventManager::update()
     {
         checkFileUpdates();
@@ -76,6 +98,11 @@ namespace CalendarOverlay
             lastUpdate = std::chrono::system_clock::now();
         }
     }
+
+    // ------------------------------------------------------------------------
+    // loadEventsFromFile: reads the JSON file and parses it.
+    // Returns true on success, false otherwise.
+    // ------------------------------------------------------------------------
     bool EventManager::loadEventsFromFile(const std::string &filepath)
     {
         std::ifstream file(filepath);
@@ -83,6 +110,7 @@ namespace CalendarOverlay
         {
             return false;
         }
+
         try
         {
             json j;
@@ -96,20 +124,28 @@ namespace CalendarOverlay
             return false;
         }
     }
+
+    // ------------------------------------------------------------------------
+    // parseEventsJson: extracts events from a JSON object.
+    // Expected format: { "events": [ { "title": "...", "startDateTime": "...", ... } ] }
+    // The startDateTime and endDateTime are expected in ISO-like format.
+    // ------------------------------------------------------------------------
     bool EventManager::parseEventsJson(const json &j)
     {
         std::lock_guard<std::mutex> lock(eventsMutex);
         events.clear();
+
         if (!j.contains("events") || !j["events"].is_array())
         {
             return false;
         }
+
         int eventCount = 0;
         for (const auto &eventJson : j["events"])
         {
             CalendarEvent event;
 
-            // Parse title
+            // Parse title (convert from std::string to char array)
             if (eventJson.contains("title") && eventJson["title"].is_string())
             {
                 std::string title = eventJson["title"];
@@ -117,14 +153,14 @@ namespace CalendarOverlay
                 std::cout << "Parsing event: " << title << std::endl;
             }
 
-            // Parse date and time from Java format
+            // Parse start date/time. The JSON may contain either ISO format with 'T' or a space.
             if (eventJson.contains("startDateTime") && eventJson["startDateTime"].is_string())
             {
                 std::string startDateTimeStr = eventJson["startDateTime"];
                 std::cout << "Parsing startDateTime: " << startDateTimeStr << std::endl;
                 try
                 {
-                    // Parse ISO format: "2025-01-28T10:30:00"
+                    // Attempt ISO format: "2025-01-28T10:30:00"
                     std::tm tm = {};
                     std::istringstream ss(startDateTimeStr);
                     ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S");
@@ -143,7 +179,7 @@ namespace CalendarOverlay
                 catch (const std::exception &e)
                 {
                     std::cout << "Exception parsing startDateTime: " << e.what() << std::endl;
-                    // Try alternative format
+                    // Try alternative format with space instead of 'T'
                     try
                     {
                         std::tm tm = {};
@@ -170,6 +206,7 @@ namespace CalendarOverlay
                 }
             }
 
+            // Parse end date/time similarly.
             if (eventJson.contains("endDateTime") && eventJson["endDateTime"].is_string())
             {
                 std::string endDateTimeStr = eventJson["endDateTime"];
@@ -219,12 +256,12 @@ namespace CalendarOverlay
                 }
             }
 
-            // Set default colors (blue)
+            // Set default color (blue). The Java side may later supply colors.
             event.colorR = 66;
             event.colorG = 133;
             event.colorB = 244;
-            event.priority = 5;
-            event.allDay = false;
+            event.priority = 5;   // Default priority
+            event.allDay = false;  // Not used currently
 
             events.push_back(event);
             eventCount++;
@@ -232,18 +269,28 @@ namespace CalendarOverlay
         std::cout << "Loaded " << eventCount << " events from Java JSON format" << std::endl;
         return eventCount > 0;
     }
+
+    // ------------------------------------------------------------------------
+    // fileWatcherProc: static thread procedure that calls checkFileUpdates() periodically.
+    // ------------------------------------------------------------------------
     DWORD WINAPI EventManager::fileWatcherProc(LPVOID param)
     {
         EventManager *manager = static_cast<EventManager *>(param);
         if (!manager)
             return 0;
+
         while (!manager->stopWatcher)
         {
-            Sleep(5000);
+            Sleep(5000);                         // Check every 5 seconds
             manager->checkFileUpdates();
         }
         return 0;
     }
+
+    // ------------------------------------------------------------------------
+    // setupSharedMemory: creates a named shared memory block for potential IPC.
+    // Currently not used but kept for future Java integration.
+    // ------------------------------------------------------------------------
     bool EventManager::setupSharedMemory()
     {
         sharedMemory = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, 65536, "Local\\CalendarOverlayShared");
@@ -252,6 +299,7 @@ namespace CalendarOverlay
             std::cerr << "Failed to create shared memory: " << GetLastError() << std::endl;
             return false;
         }
+
         sharedMemoryPtr = MapViewOfFile(sharedMemory, FILE_MAP_ALL_ACCESS, 0, 0, 0);
         if (!sharedMemoryPtr)
         {
@@ -263,6 +311,11 @@ namespace CalendarOverlay
         sharedMemorySize = 65536;
         return true;
     }
+
+    // ------------------------------------------------------------------------
+    // checkFileUpdates: compares the file's last modification time with the
+    // stored value; if newer, reloads the file.
+    // ------------------------------------------------------------------------
     void EventManager::checkFileUpdates()
     {
         struct _stat fileStat;
@@ -276,6 +329,10 @@ namespace CalendarOverlay
             }
         }
     }
+
+    // ------------------------------------------------------------------------
+    // hasNewData: returns true if the file has been modified since last load.
+    // ------------------------------------------------------------------------
     bool EventManager::hasNewData() const
     {
         struct _stat fileStat;
@@ -286,6 +343,10 @@ namespace CalendarOverlay
         auto modTime = std::chrono::system_clock::from_time_t(fileStat.st_mtime);
         return modTime > lastFileModification;
     }
+
+    // ------------------------------------------------------------------------
+    // getTodayEvents: returns all events that occur on the current calendar day.
+    // ------------------------------------------------------------------------
     std::vector<CalendarEvent> EventManager::getTodayEvents() const
     {
         std::vector<CalendarEvent> todayEvents;
@@ -293,6 +354,7 @@ namespace CalendarOverlay
         auto today = std::chrono::system_clock::to_time_t(now);
         std::tm todayTm;
         localtime_s(&todayTm, &today);
+
         std::lock_guard<std::mutex> lock(eventsMutex);
         for (const auto &event : events)
         {
@@ -300,19 +362,28 @@ namespace CalendarOverlay
             auto eventTm = std::chrono::system_clock::to_time_t(eventTime);
             std::tm eventTimeTm;
             localtime_s(&eventTimeTm, &eventTm);
-            if (eventTimeTm.tm_year == todayTm.tm_year && eventTimeTm.tm_mon == todayTm.tm_mon && eventTimeTm.tm_mday == todayTm.tm_mday)
+
+            // Compare year, month, day
+            if (eventTimeTm.tm_year == todayTm.tm_year &&
+                eventTimeTm.tm_mon == todayTm.tm_mon &&
+                eventTimeTm.tm_mday == todayTm.tm_mday)
             {
                 todayEvents.push_back(event);
             }
         }
         return todayEvents;
     }
+
+    // ------------------------------------------------------------------------
+    // getUpcomingEvents: returns events that start within the next 'hours' hours.
+    // ------------------------------------------------------------------------
     std::vector<CalendarEvent> EventManager::getUpcomingEvents(int hours) const
     {
         std::vector<CalendarEvent> upcoming;
         auto now = std::chrono::system_clock::now();
         auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
         auto cutoff = nowMs + (hours * 3600 * 1000);
+
         std::lock_guard<std::mutex> lock(eventsMutex);
         for (const auto &event : events)
         {
@@ -321,6 +392,8 @@ namespace CalendarOverlay
                 upcoming.push_back(event);
             }
         }
+
+        // Sort by start time (earliest first)
         std::sort(upcoming.begin(), upcoming.end(), [](const CalendarEvent &a, const CalendarEvent &b)
                   { return a.startTime < b.startTime; });
         return upcoming;
