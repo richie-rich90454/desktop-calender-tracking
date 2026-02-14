@@ -76,28 +76,9 @@ public class CalendarComponents{
         eventsPanel.setBackground(NEUTRAL_BG);
         eventsPanel.add(upcomingLabel, BorderLayout.NORTH);
         eventsPanel.add(eventsScrollPane, BorderLayout.CENTER);
-
-        // Removed AudioPlayerPanel instantiation and JTabbedPane logic
-        // AudioPlayerPanel audioPlayerPanel = new AudioPlayerPanel();
-
-        // Removed JTabbedPane
-        // JTabbedPane sidebarTabs = new JTabbedPane(JTabbedPane.TOP);
-        // sidebarTabs.setBackground(NEUTRAL_BG);
-        // sidebarTabs.setForeground(TEXT_PRIMARY);
-        // sidebarTabs.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-
-        // JPanel eventsTab = new JPanel(new BorderLayout());
-        // eventsTab.setBackground(NEUTRAL_BG);
-        // eventsTab.add(eventsPanel, BorderLayout.CENTER);
-        // eventsTab.add(addEventButton, BorderLayout.SOUTH);
-
-        // sidebarTabs.addTab("Events", eventsTab);
-        // sidebarTabs.addTab("Audio Player", audioPlayerPanel); // This tab is gone
-
         sidebarPanel.add(sidebarHeader, BorderLayout.NORTH);
-        // sidebarPanel.add(sidebarTabs, BorderLayout.CENTER); // Add only the events part directly now
-        sidebarPanel.add(eventsPanel, BorderLayout.CENTER); // Add events panel directly
-        sidebarPanel.add(addEventButton, BorderLayout.SOUTH); // Add button to bottom of sidebar panel
+        sidebarPanel.add(eventsPanel, BorderLayout.CENTER);
+        sidebarPanel.add(addEventButton, BorderLayout.SOUTH);
 
         return sidebarPanel;
     }
