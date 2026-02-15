@@ -439,12 +439,11 @@ public class EventEditor {
             calendarGrid.repaint();
         }
         private static void renderDayView(LocalDate date, CalendarController controller, JPanel calendarGrid, JLabel monthYearLabel, JFrame parent){
-            DateTimeFormatter monthYearFormatter=DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH);
-            DateTimeFormatter dayFormatter=DateTimeFormatter.ofPattern("EEEE", Locale.ENGLISH);
-            monthYearLabel.setText(date.format(dayFormatter)+", "+date.format(monthYearFormatter));
+            DateTimeFormatter dayViewFormatter=DateTimeFormatter.ofPattern("MMMM d (EEEE), yyyy",Locale.ENGLISH);
+            monthYearLabel.setText(date.format(dayViewFormatter));
             calendarGrid.removeAll();
-            calendarGrid.setLayout(new GridLayout(0, 1, 0, 1));
-            for (int hour=0;hour<24;hour++){
+            calendarGrid.setLayout(new GridLayout(0,1,0,1));
+            for(int hour=0;hour<24;hour++){
                 JPanel hourPanel=new JPanel(new BorderLayout());
                 hourPanel.setBackground(NEUTRAL_BG);
                 hourPanel.setBorder(BorderFactory.createCompoundBorder(
@@ -459,10 +458,10 @@ public class EventEditor {
                 eventsPanel.setLayout(new BoxLayout(eventsPanel, BoxLayout.Y_AXIS));
                 eventsPanel.setBackground(NEUTRAL_BG);
                 List<Event> events=controller.getEventsbyDate(date);
-                for (Event event:events){
+                for(Event event:events){
                     LocalTime eventStart=event.getStartTime().toLocalTime();
                     LocalTime eventEnd=event.getEndTime().toLocalTime();
-                    if (eventStart.getHour()==hour||(eventStart.getHour()<=hour&& eventEnd.getHour()>hour)){
+                    if(eventStart.getHour()==hour||(eventStart.getHour()<=hour&&eventEnd.getHour()>hour)){
                         JPanel eventPanel=new JPanel(new BorderLayout());
                         eventPanel.setBackground(new Color(230, 245, 230));
                         eventPanel.setBorder(new EmptyBorder(4, 8, 4, 8));
@@ -479,7 +478,7 @@ public class EventEditor {
                         eventPanel.addMouseListener(new MouseAdapter(){
                             @Override
                             public void mouseClicked(MouseEvent e){
-                                if (e.getClickCount()==2){
+                                if(e.getClickCount()==2){
                                     EventEditor.showEditEventDialog(parent, controller, event, new Color(66, 133, 244), new Color(220, 53, 69), new Color(255, 255, 255), new Color(233, 236, 239), new Color(33, 37, 41), new Color(108, 117, 125));
                                 }
                             }
