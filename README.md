@@ -30,9 +30,9 @@
 ### 🤖 **Advanced AI-Powered Scheduling**
 - **Natural Language Event Generation**: Describe goals like "Create a study schedule for machine learning over 2 weeks" and AI generates optimized calendar events
 - **Multi-Model AI Support**: 
-  - **OpenAI GPT-3.5/4**: Cloud-based, most powerful models
+  - **OpenAI Models**: Cloud-based, most powerful models
   - **Ollama Local LLMs**: Privacy-focused, offline-capable (Llama 3.2, Mistral, etc.)
-  - **OpenRouter/Claude**: Alternative AI providers via OpenAI-compatible APIs
+  - **OpenRouter**: Alternative AI providers via OpenAI-compatible APIs
 - **Intelligent Conflict Resolution**: AI automatically detects and avoids scheduling conflicts with existing events
 - **Token Usage Analytics**: Real-time monitoring of API token consumption and cost estimation
 
