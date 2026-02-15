@@ -26,13 +26,10 @@ public class MenuBuilder{
         fileMenu.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
         JMenuItem saveMenuItem=new JMenuItem("Save");
         saveMenuItem.addActionListener(e -> handleSaveAction(frame, controller));
-        JMenuItem preferencesMenuItem=new JMenuItem("Preferences");
-        preferencesMenuItem.addActionListener(e -> PreferencesDialog.showDialog(frame));
         JMenuItem exitMenuItem=new JMenuItem("Exit");
         exitMenuItem.addActionListener(e -> frame.handleWindowClosing());
         fileMenu.add(saveMenuItem);
         fileMenu.addSeparator();
-        fileMenu.add(preferencesMenuItem);
         fileMenu.addSeparator();
         fileMenu.add(exitMenuItem);
         return fileMenu;
