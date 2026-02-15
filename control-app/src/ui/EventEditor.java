@@ -169,18 +169,22 @@ public class EventEditor {
         private static Color NEUTRAL_MID=new Color(233, 236, 239);
         private static Color TEXT_PRIMARY=new Color(33, 37, 41);
         private static DateTimeFormatter timeFormatter=DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH);
-        public static void renderCalendar(AppState.ViewMode viewMode, LocalDate selectedDate,  CalendarController controller, JPanel calendarGrid, JLabel monthYearLabel, JScrollPane calendarScrollPane, LocalDate currentSelectedDate, AppState appState, JFrame parent){
+        public static void renderCalendar(AppState.ViewMode viewMode, LocalDate selectedDate, CalendarController controller, JPanel calendarGrid, JLabel monthYearLabel, JScrollPane calendarScrollPane, LocalDate currentSelectedDate, AppState appState, JFrame parent){
+            calendarScrollPane.getViewport().removeAll();
             switch (viewMode){
                 case MONTH_VIEW:
                     renderMonthView(selectedDate, controller, calendarGrid, monthYearLabel, calendarScrollPane, currentSelectedDate, appState, parent);
                     break;
                 case WEEK_VIEW:
+                    calendarScrollPane.setViewportView(calendarGrid);
                     renderWeekView(selectedDate, controller, calendarGrid, monthYearLabel);
                     break;
                 case DAY_VIEW:
+                    calendarScrollPane.setViewportView(calendarGrid);
                     renderDayView(selectedDate, controller, calendarGrid, monthYearLabel, parent);
                     break;
                 case AGENDA_VIEW:
+                    calendarScrollPane.setViewportView(calendarGrid);
                     renderAgendaView(selectedDate, controller, calendarGrid, monthYearLabel, parent);
                     break;
             }
@@ -217,30 +221,36 @@ public class EventEditor {
             innerScroll.setBorder(null);
             container.add(innerScroll, BorderLayout.CENTER);
             calendarScrollPane.setViewportView(container);
+            int viewportWidth=calendarScrollPane.getViewport().getWidth();
+            if (viewportWidth<=0){
+                viewportWidth=calendarScrollPane.getPreferredSize().width;
+            }
+            int cellWidth=(viewportWidth - 6) / 7;
+            if (cellWidth<40) cellWidth=40;
             LocalDate firstDayOfMonth=date.withDayOfMonth(1);
-            int startDayOfWeek=firstDayOfMonth.getDayOfWeek().getValue() % 7;
+            int startDayOfWeek=firstDayOfMonth.getDayOfWeek().getValue()%7;
             int daysInMonth=date.lengthOfMonth();
             for (int i=0;i<startDayOfWeek;i++){
-                calendarGrid.add(createDayCell(null, null, null, null));
+                calendarGrid.add(createDayCell(null, null, null, null, cellWidth));
             }
             for (int day=1;day<=daysInMonth;day++){
                 LocalDate cellDate=date.withDayOfMonth(day);
-                calendarGrid.add(createDayCell(cellDate, controller, appState, parent));
+                calendarGrid.add(createDayCell(cellDate, controller, appState, parent, cellWidth));
             }
             int totalCells=42;
             int cellsUsed=startDayOfWeek+daysInMonth;
             for (int i=cellsUsed;i<totalCells;i++){
-                calendarGrid.add(createDayCell(null, null, null, null));
+                calendarGrid.add(createDayCell(null, null, null, null, cellWidth));
             }
             calendarGrid.revalidate();
             calendarGrid.repaint();
         }
-        private static JPanel createDayCell(LocalDate date, CalendarController controller, AppState appState, JFrame parent){
+        private static JPanel createDayCell(LocalDate date, CalendarController controller, AppState appState, JFrame parent, int cellWidth){
             JPanel cell=new JPanel(new BorderLayout(0, 4));
             cell.setBackground(NEUTRAL_BG);
             cell.setBorder(BorderFactory.createCompoundBorder(
-                new LineBorder(NEUTRAL_MID, 1),
-                new EmptyBorder(6, 4, 6, 4)
+                    new LineBorder(NEUTRAL_MID, 1),
+                    new EmptyBorder(6, 4, 6, 4)
             ));
             if (date!=null){
                 JLabel dayLabel=new JLabel(String.valueOf(date.getDayOfMonth()), SwingConstants.CENTER);
@@ -274,21 +284,30 @@ public class EventEditor {
                     eventsPanel.setLayout(new BoxLayout(eventsPanel, BoxLayout.Y_AXIS));
                     eventsPanel.setBackground(cell.getBackground());
                     eventsPanel.setBorder(new EmptyBorder(2, 0, 0, 0));
+                    int availableWidth=cellWidth - 10;
+                    Font eventFont=new Font("Segoe UI", Font.PLAIN, 10);
+                    FontMetrics metrics=cell.getFontMetrics(eventFont);
                     int maxEvents=Math.min(dayEvents.size(), 2);
                     for (int i=0;i<maxEvents;i++){
                         Event event=dayEvents.get(i);
-                        JLabel eventLabel=new JLabel("• "+event.getTitle());
-                        eventLabel.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+                        String fullTitle=event.getTitle();
+                        String displayText=truncateText(fullTitle, metrics, availableWidth);
+                        JLabel eventLabel=new JLabel(displayText);
+                        eventLabel.setFont(eventFont);
                         eventLabel.setForeground(PRIMARY_GREEN);
-                        eventLabel.setBackground(cell.getBackground());
-                        eventLabel.setOpaque(true);
-                        eventLabel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 14));
+                        eventLabel.setToolTipText(fullTitle);
+                        eventLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
                         eventsPanel.add(eventLabel);
                     }
                     if (dayEvents.size()>2){
-                        JLabel moreLabel=new JLabel("+"+(dayEvents.size()-2)+" more");
-                        moreLabel.setFont(new Font("Segoe UI", Font.PLAIN, 8));
+                        int moreCount=dayEvents.size() - 2;
+                        String moreText="+"+moreCount+" more";
+                        String displayMore=truncateText(moreText, metrics, availableWidth);
+                        JLabel moreLabel=new JLabel(displayMore);
+                        moreLabel.setFont(eventFont.deriveFont(Font.PLAIN, 8));
                         moreLabel.setForeground(TEXT_SECONDARY);
+                        moreLabel.setToolTipText("More events...");
+                        moreLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
                         eventsPanel.add(moreLabel);
                     }
                     cell.add(eventsPanel, BorderLayout.CENTER);
@@ -302,7 +321,7 @@ public class EventEditor {
                     @Override
                     public void mouseEntered(MouseEvent e){
                         Color currentBg=cell.getBackground();
-                        if (!currentBg.equals(CALENDAR_TODAY)&& !currentBg.equals(CALENDAR_SELECTED)){
+                        if (!currentBg.equals(CALENDAR_TODAY)&&!currentBg.equals(CALENDAR_SELECTED)){
                             cell.setBackground(NEUTRAL_LIGHT);
                         }
                     }
@@ -327,7 +346,28 @@ public class EventEditor {
             else{
                 cell.setBackground(NEUTRAL_LIGHT);
             }
+            if (cellWidth>0){
+                cell.setPreferredSize(new Dimension(cellWidth, cell.getPreferredSize().height));
+            }
             return cell;
+        }
+        private static String truncateText(String text, FontMetrics metrics, int maxWidth){
+            if (metrics.stringWidth(text)<=maxWidth){
+                return text;
+            }
+            String ellipsis="...";
+            int ellipsisWidth=metrics.stringWidth(ellipsis);
+            int available=maxWidth - ellipsisWidth;
+            if (available<=0){
+                return ellipsis;
+            }
+            for (int i=text.length();i>0;i--){
+                String sub=text.substring(0, i);
+                if (metrics.stringWidth(sub)<=available){
+                    return sub+ellipsis;
+                }
+            }
+            return ellipsis;
         }
         private static void renderWeekView(LocalDate date, CalendarController controller, JPanel calendarGrid, JLabel monthYearLabel){
             DateTimeFormatter shortDayFormatter=DateTimeFormatter.ofPattern("EEE", Locale.ENGLISH);
@@ -458,17 +498,13 @@ public class EventEditor {
         private static void renderAgendaView(LocalDate date, CalendarController controller, JPanel calendarGrid, JLabel monthYearLabel, JFrame parent){
             DateTimeFormatter monthYearFormatter=DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH);
             DateTimeFormatter dateFormatter=DateTimeFormatter.ofPattern("EEEE, MMMM d", Locale.ENGLISH);
-            monthYearLabel.setText("Agenda-"+date.format(monthYearFormatter));
+            monthYearLabel.setText("Agenda - "+date.format(monthYearFormatter));
             calendarGrid.removeAll();
             calendarGrid.setLayout(new BorderLayout());
             LocalDate firstOfMonth=date.withDayOfMonth(1);
             LocalDate lastOfMonth=date.withDayOfMonth(date.lengthOfMonth());
             List<Event> monthEvents=controller.getEventsByDateRange(firstOfMonth, lastOfMonth);
-            monthEvents.sort(new Comparator<Event>(){
-                public int compare(Event e1, Event e2){
-                    return e1.getStartTime().compareTo(e2.getStartTime());
-                }
-            });
+            monthEvents.sort(Comparator.comparing(Event::getStartTime));
             JPanel agendaPanel=new JPanel();
             agendaPanel.setLayout(new BoxLayout(agendaPanel, BoxLayout.Y_AXIS));
             agendaPanel.setBackground(NEUTRAL_BG);
@@ -499,7 +535,7 @@ public class EventEditor {
                 eventPanel.setBackground(NEUTRAL_BG);
                 eventPanel.setBorder(new EmptyBorder(8, 32, 8, 16));
                 eventPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
-                JLabel timeLabel=new JLabel(event.getStartTime().format(timeFormatter)+"-"+event.getEndTime().format(timeFormatter));
+                JLabel timeLabel=new JLabel(event.getStartTime().format(timeFormatter)+" - "+event.getEndTime().format(timeFormatter));
                 timeLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
                 timeLabel.setForeground(TEXT_SECONDARY);
                 timeLabel.setPreferredSize(new Dimension(120, 0));
@@ -508,17 +544,13 @@ public class EventEditor {
                 titleLabel.setForeground(TEXT_PRIMARY);
                 JPopupMenu eventMenu=new JPopupMenu();
                 JMenuItem deleteItem=new JMenuItem("Delete");
-                deleteItem.addActionListener(new java.awt.event.ActionListener(){
-                    public void actionPerformed(java.awt.event.ActionEvent e){
-                        int confirm=JOptionPane.showConfirmDialog(
-                            parent,
-                            "Delete '"+event.getTitle()+"'?",
-                            "Confirm Delete",
-                            JOptionPane.YES_NO_OPTION
-                        );
-                        if (confirm==JOptionPane.YES_OPTION){
-                            controller.deleteEvent(event);
-                        }
+                deleteItem.addActionListener(e->{
+                    int confirm=JOptionPane.showConfirmDialog(parent,
+                        "Delete '"+event.getTitle()+"'?",
+                        "Confirm Delete",
+                        JOptionPane.YES_NO_OPTION);
+                    if (confirm==JOptionPane.YES_OPTION){
+                        controller.deleteEvent(event);
                     }
                 });
                 eventMenu.add(deleteItem);
@@ -529,7 +561,9 @@ public class EventEditor {
                             eventMenu.show(eventPanel, e.getX(), e.getY());
                         }
                         else if (e.getClickCount()==2){
-                            EventEditor.showEditEventDialog(parent, controller, event, new Color(66, 133, 244), new Color(220, 53, 69), new Color(255, 255, 255), new Color(233, 236, 239), new Color(33, 37, 41), new Color(108, 117, 125));
+                            EventEditor.showEditEventDialog(parent, controller, event,
+                                PRIMARY_BLUE, PRIMARY_RED, NEUTRAL_BG, NEUTRAL_MID,
+                                TEXT_PRIMARY, TEXT_SECONDARY);
                         }
                     }
                 });
@@ -545,9 +579,7 @@ public class EventEditor {
                 emptyLabel.setBorder(new EmptyBorder(100, 0, 0, 0));
                 agendaPanel.add(emptyLabel);
             }
-            JScrollPane scrollPane=new JScrollPane(agendaPanel);
-            scrollPane.setBorder(null);
-            calendarGrid.add(scrollPane, BorderLayout.CENTER);
+            calendarGrid.add(agendaPanel, BorderLayout.CENTER);
             calendarGrid.revalidate();
             calendarGrid.repaint();
         }
