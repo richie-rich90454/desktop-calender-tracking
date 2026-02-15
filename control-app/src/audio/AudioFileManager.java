@@ -99,24 +99,16 @@ public class AudioFileManager{
         }
         int trackNumber=getNextTrackNumber();
         String baseName=removeExtension(originalName);
-        String finalExtension;
-        if ("mid".equalsIgnoreCase(extension)||"midi".equalsIgnoreCase(extension)){
-            finalExtension=extension.toLowerCase();
-        }
-        else{
-            finalExtension=OUTPUT_EXTENSION;
-        }
+        boolean isMidi="mid".equalsIgnoreCase(extension)||"midi".equalsIgnoreCase(extension);
+        String finalExtension=isMidi?extension.toLowerCase():OUTPUT_EXTENSION;
         String prefixedName=String.format(PREFIX_FORMAT+"_%s.%s", trackNumber, baseName, finalExtension);
         Path destinationPath=audioDirectory.resolve(prefixedName);
-        if ("mp3".equalsIgnoreCase(extension)||"ogg".equalsIgnoreCase(extension)||"flac".equalsIgnoreCase(extension)){
-            convertToWav(sourceFile, destinationPath);
-        }
-        else if ("mid".equalsIgnoreCase(extension)||"midi".equalsIgnoreCase(extension)){
+        if (isMidi){
             Files.copy(sourceFile.toPath(), destinationPath, StandardCopyOption.REPLACE_EXISTING);
             System.out.println("MIDI file uploaded as: "+prefixedName+" (kept original extension)");
         }
         else{
-            Files.copy(sourceFile.toPath(), destinationPath, StandardCopyOption.REPLACE_EXISTING);
+            convertToWav(sourceFile, destinationPath);
         }
         return new AudioTrack(destinationPath.toFile(), trackNumber, baseName, 0);
     }
@@ -124,7 +116,17 @@ public class AudioFileManager{
         if (!isFfmpegAvailable()){
             throw new IOException("FFmpeg is required for audio conversion but not found in system PATH");
         }
-        ProcessBuilder processBuilder=new ProcessBuilder("ffmpeg","-i", sourceFile.getAbsolutePath(),"-acodec", "pcm_s16le","-ar", "44100","-ac", "2","-y",destinationPath.toAbsolutePath().toString());
+        ProcessBuilder processBuilder=new ProcessBuilder(
+            "ffmpeg",
+            "-i", sourceFile.getAbsolutePath(),
+            "-map_metadata", "-1",
+            "-f", "wav",
+            "-acodec", "pcm_s16le",
+            "-ar", "44100",
+            "-ac", "2",
+            "-y",
+            destinationPath.toAbsolutePath().toString()
+        );
         processBuilder.redirectErrorStream(true);
         try{
             Process process=processBuilder.start();
@@ -201,11 +203,12 @@ public class AudioFileManager{
                 Path tempPath=tempPaths.get(i);
                 String currentName=track.getAudioFile().getName();
                 String baseName=removeExtension(currentName);
+                String extension=getFileExtension(currentName);
                 if (baseName.contains("_")){
                     baseName=baseName.substring(baseName.indexOf("_")+1);
                 }
                 int newNumber=i+1;
-                String newName=String.format(PREFIX_FORMAT+"_%s."+OUTPUT_EXTENSION, newNumber, baseName);
+                String newName=String.format(PREFIX_FORMAT+"_%s.%s", newNumber, baseName, extension);
                 Path newPath=audioDirectory.resolve(newName);
                 Files.move(tempPath, newPath, StandardCopyOption.REPLACE_EXISTING);
                 track.setTrackNumber(newNumber);
@@ -220,10 +223,11 @@ public class AudioFileManager{
         File currentFile=track.getAudioFile();
         String currentName=currentFile.getName();
         String baseName=removeExtension(currentName);
+        String extension=getFileExtension(currentName);
         if (baseName.contains("_")){
             baseName=baseName.substring(baseName.indexOf("_")+1);
         }
-        String newName=String.format(PREFIX_FORMAT+"_%s."+OUTPUT_EXTENSION, newNumber, baseName);
+        String newName=String.format(PREFIX_FORMAT+"_%s.%s", newNumber, baseName, extension);
         Path newPath=audioDirectory.resolve(newName);
         Files.move(currentFile.toPath(), newPath, StandardCopyOption.REPLACE_EXISTING);
         track.setTrackNumber(newNumber);
