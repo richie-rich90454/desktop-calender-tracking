@@ -1,11 +1,17 @@
 # 🗓️ Desktop Calendar Tracking - AI-Powered Intelligent Calendar with Desktop Overlay
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Java Version](https://img.shields.io/badge/Java-17%2B-orange)](https://openjdk.org/)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](https://github.com/richie-rich90454/desktop-calendar-tracking)
-[![AI Powered](https://img.shields.io/badge/AI-OpenAI%2FOllama%2FClaude-green)](https://github.com/richie-rich90454/desktop-calendar-tracking)
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/richie-rich90454/desktop-calendar-tracking/actions)
-[![Stars](https://img.shields.io/github/stars/richie-rich90454/desktop-calendar-tracking?style=social)](https://github.com/richie-rich90454/desktop-calendar-tracking)
+[![License: MIT](https://img.shields.io/badge/license-MIT-2b2f36?style=flat-square)](LICENSE)
+![Java](https://img.shields.io/badge/Java-17%2B-ED8B00?style=flat-square&logo=openjdk&logoColor=white)
+![Swing](https://img.shields.io/badge/UI-Java%20Swing-3a3f45?style=flat-square)
+![C++](https://img.shields.io/badge/C%2B%2B-17-00599C?style=flat-square&logo=cplusplus&logoColor=white)
+![Swift](https://img.shields.io/badge/Swift-5.3%2B-F05138?style=flat-square&logo=swift&logoColor=white)
+![Windows](https://img.shields.io/badge/Windows-Win32-0078D6?style=flat-square&logo=windows&logoColor=white)
+![macOS](https://img.shields.io/badge/macOS-AppKit-000000?style=flat-square&logo=apple&logoColor=white)
+![AI Assisted](https://img.shields.io/badge/AI-assisted-1f2933?style=flat-square)
+![Local AI](https://img.shields.io/badge/Local%20LLM-Ollama-374151?style=flat-square)
+![Cloud AI](https://img.shields.io/badge/Cloud%20LLM-OpenAI%20%7C%20OpenRouter-374151?style=flat-square)
+![Build](https://img.shields.io/badge/build-stable-2ea043?style=flat-square)
+[![Stars](https://img.shields.io/github/stars/richie-rich90454/desktop-calendar-tracking?style=flat-square)](https://github.com/richie-rich90454/desktop-calendar-tracking)
 
 **Desktop Calendar Tracking** is a sophisticated, cross-platform desktop application that combines **AI-powered intelligent scheduling** with **transparent desktop overlays** for always-visible calendar management. Built with Java Swing for the core application, native C++/Swift for desktop overlays, and integrated AI capabilities via OpenAI/Ollama APIs.
 
@@ -126,7 +132,7 @@ graph TB
         E --> I[OllamaClient.java]
         H --> J[HTTP Client - OpenAI API]
         I --> K[HTTP Client - Ollama Local]
-        J --> L[GPT-3.5/4, Claude, etc.]
+        J --> L[GPT etc.]
         K --> M[Llama 3.2, Mistral, etc.]
     end
     
@@ -161,7 +167,7 @@ graph TB
 #### **2. AI Integration Layer (`control-app/src/ai/`)**
 - **Interface Design**: `AIClient.java` with provider-agnostic contract
 - **Implementations**:
-  - `OpenAICompatibleClient.java`: 450+ LOC, supports OpenAI, Claude, DeepSeek via REST API
+  - `OpenAICompatibleClient.java`: 450+ LOC, supports OpenAI, DeepSeek etc. via REST API
   - `OllamaClient.java`: 360+ LOC, local LLM integration with model management
 - **Prompt Engineering**: Structured prompts in `prompts.txt` with JSON response parsing via `AIJsonParser.java`
 - **Token Management**: `UsageStats` inner class for cost tracking and rate limiting
@@ -273,7 +279,7 @@ docker run -v ~/.calendarapp:/root/.calendarapp -e OPENAI_API_KEY=your_key deskt
 
 ### AI Provider Configuration
 
-#### **Option A: OpenAI/Claude/DeepSeek**
+#### **Option A: OpenAI/DeepSeek**
 ```json
 // ~/.calendarapp/settings.json
 {
