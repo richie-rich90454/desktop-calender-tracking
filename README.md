@@ -78,7 +78,7 @@
 | Main Calendar Interface | Desktop Overlay | AI Configuration |
 |------------------------|-----------------|------------------|
 | ![Main Calendar](https://via.placeholder.com/400x250/4A90E2/FFFFFF?text=Calendar+Main+UI) | ![Desktop Overlay](https://via.placeholder.com/400x250/9013FE/FFFFFF?text=Transparent+Overlay) | ![AI Settings](https://via.placeholder.com/400x250/50E3C2/000000?text=AI+Configuration) |
-| **Feature**: Day/Week/Month views with color-coded events<br>**Tech**: Java Swing with custom rendering | **Feature**: Always-on-top transparent window<br>**Tech**: C++/Win32 (Windows), Swift/AppKit (macOS) | **Feature**: Multi-provider AI configuration<br>**Tech**: OpenAI, Ollama, Claude APIs |
+| **Feature**: Day/Week/Month views with color-coded events<br>**Tech**: Java Swing with custom rendering | **Feature**: Always-on-top transparent window<br>**Tech**: C++/Win32 (Windows), Swift/AppKit (macOS) | **Feature**: Multi-provider AI configuration<br>**Tech**: OpenAI, Ollama, APIs |
 
 | Event Editor | System Tray Integration | JSON Data Structure |
 |--------------|-------------------------|---------------------|
