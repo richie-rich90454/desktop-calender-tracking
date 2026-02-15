@@ -17,7 +17,7 @@ public class EventListCellRenderer extends DefaultListCellRenderer{
             setText("No events scheduled for this day");
             setForeground(DISABLED_TEXT);
             setHorizontalAlignment(SwingConstants.CENTER);
-            setFont(new Font("Segoe UI", Font.ITALIC, 12));
+            setFont(new Font(Font.SANS_SERIF, Font.ITALIC, 12));
             setIcon(null);
             setBorder(new EmptyBorder(20, 10, 20, 10));
         }
@@ -28,7 +28,7 @@ public class EventListCellRenderer extends DefaultListCellRenderer{
             setText(String.format("<html><b>%s</b><br/><font color='#6C757D' size='-1'>%s-%s</font></html>",event.getTitle(), startTime, endTime));
             setIcon(new EventDotIcon(new Color(30, 120, 83)));
             setBorder(new EmptyBorder(10, 10, 10, 10));
-            setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
         }
         return this;
     }

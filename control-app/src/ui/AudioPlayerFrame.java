@@ -87,18 +87,18 @@ public class AudioPlayerFrame extends JPanel{
         progressSlider.setBackground(NEUTRAL_BG);
         progressSlider.setEnabled(false);
         progressSlider.setPreferredSize(new Dimension(200, 20));
-        currentTimeLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        currentTimeLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
         currentTimeLabel.setForeground(TEXT_SECONDARY);
-        totalTimeLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        totalTimeLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
         totalTimeLabel.setForeground(TEXT_SECONDARY);
-        nowPlayingLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        nowPlayingLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
         nowPlayingLabel.setForeground(ACCENT_COLOR);
-        statusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        statusLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
         statusLabel.setForeground(TEXT_SECONDARY);
     }
     private JButton createControlButton(String text, String tooltip){
         JButton button=new JButton(text);
-        button.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
         button.setBackground(NEUTRAL_BG);
         button.setForeground(TEXT_PRIMARY);
         button.setBorder(BorderFactory.createCompoundBorder(new LineBorder(NEUTRAL_MID, 1),new EmptyBorder(6, 12, 6, 12)));
@@ -117,7 +117,7 @@ public class AudioPlayerFrame extends JPanel{
     }
     private JButton createActionButton(String text, String tooltip){
         JButton button=new JButton(text);
-        button.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        button.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
         button.setBackground(new Color(220, 220, 220));
         button.setForeground(TEXT_PRIMARY);
         button.setBorder(BorderFactory.createCompoundBorder(new LineBorder(NEUTRAL_MID, 1),new EmptyBorder(4, 8, 4, 8)));
@@ -143,7 +143,7 @@ public class AudioPlayerFrame extends JPanel{
         headerPanel.setBackground(NEUTRAL_BG);
         headerPanel.setBorder(new EmptyBorder(0, 0, 15, 0));
         JLabel titleLabel=new JLabel("Audio Player");
-        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        titleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 20));
         titleLabel.setForeground(TEXT_PRIMARY);
         headerPanel.add(titleLabel, BorderLayout.WEST);
         headerPanel.add(statusLabel, BorderLayout.EAST);
@@ -161,7 +161,7 @@ public class AudioPlayerFrame extends JPanel{
         transportPanel.add(previousButton);
         playButton.setBackground(ACCENT_COLOR);
         playButton.setForeground(TEXT_PRIMARY);
-        playButton.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        playButton.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
         playButton.addMouseListener(new java.awt.event.MouseAdapter(){
             public void mouseEntered(java.awt.event.MouseEvent evt){
                 playButton.setBackground(ACCENT_DARK);
@@ -494,12 +494,12 @@ public class AudioPlayerFrame extends JPanel{
             trackNumberLabel.setFont(new Font("Monospaced", Font.BOLD, 13));
             trackNumberLabel.setPreferredSize(new Dimension(50, 20));
             trackNameLabel=new JLabel();
-            trackNameLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+            trackNameLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
             durationLabel=new JLabel();
-            durationLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            durationLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
             durationLabel.setForeground(TEXT_SECONDARY);
             playingIndicator=new JLabel(">");
-            playingIndicator.setFont(new Font("Segoe UI", Font.BOLD, 14));
+            playingIndicator.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
             playingIndicator.setForeground(ACCENT_COLOR);
             playingIndicator.setVisible(false);
             JPanel leftPanel=new JPanel(new BorderLayout(10, 0));

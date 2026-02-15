@@ -25,7 +25,7 @@ public class EventEditor {
     public static class UIComponentFactory{
         public static JButton createTextButton(String text, Color bg, Color hoverBg, Color border, Color textColor){
             JButton button=new JButton(text);
-            button.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            button.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
             button.setBackground(bg);
             button.setForeground(textColor);
             button.setBorder(BorderFactory.createCompoundBorder(
@@ -48,7 +48,7 @@ public class EventEditor {
         }
         public static JButton createPrimaryButton(String text, Color primary){
             JButton button=new JButton(text);
-            button.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            button.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
             button.setBackground(primary);
             button.setForeground(Color.BLACK);
             button.setBorder(BorderFactory.createCompoundBorder(
@@ -82,7 +82,7 @@ public class EventEditor {
         public static JButton createViewModeButton(String text, AppState.ViewMode viewMode, boolean active, Color primary, Color bg, Color border, Color hoverBg, Color textColor){
             JButton button=new JButton(text);
             button.putClientProperty("viewMode", viewMode);
-            button.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            button.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
             if (active){
                 button.setBackground(primary);
                 button.setForeground(Color.BLACK);
@@ -199,7 +199,7 @@ public class EventEditor {
             String[] days={"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
             for (int i=0;i<days.length;i++){
                 JLabel label=new JLabel(days[i].substring(0, 3), SwingConstants.CENTER);
-                label.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
                 label.setBackground(NEUTRAL_MID);
                 label.setOpaque(true);
                 label.setBorder(new EmptyBorder(8, 2, 8, 2));
@@ -254,17 +254,17 @@ public class EventEditor {
             ));
             if (date!=null){
                 JLabel dayLabel=new JLabel(String.valueOf(date.getDayOfMonth()), SwingConstants.CENTER);
-                dayLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+                dayLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
                 LocalDate today=LocalDate.now();
                 LocalDate selectedDate=appState.getSelectedDate();
                 if (date.equals(today)){
                     cell.setBackground(CALENDAR_TODAY);
-                    dayLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+                    dayLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
                     dayLabel.setForeground(PRIMARY_BLUE);
                 }
                 else if (date.equals(appState.getSelectedDate())){
                     cell.setBackground(CALENDAR_SELECTED);
-                    dayLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+                    dayLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
                     dayLabel.setForeground(TEXT_PRIMARY);
                 }
                 else if (date.getMonth()!=selectedDate.getMonth()){
@@ -285,7 +285,7 @@ public class EventEditor {
                     eventsPanel.setBackground(cell.getBackground());
                     eventsPanel.setBorder(new EmptyBorder(2, 0, 0, 0));
                     int availableWidth=cellWidth - 10;
-                    Font eventFont=new Font("Segoe UI", Font.PLAIN, 10);
+                    Font eventFont=new Font(Font.SANS_SERIF, Font.PLAIN, 10);
                     FontMetrics metrics=cell.getFontMetrics(eventFont);
                     int maxEvents=Math.min(dayEvents.size(), 2);
                     for (int i=0;i<maxEvents;i++){
@@ -382,9 +382,9 @@ public class EventEditor {
                 dayHeader.setBackground(NEUTRAL_MID);
                 dayHeader.setBorder(new EmptyBorder(4, 4, 4, 4));
                 JLabel dayName=new JLabel(dayDate.format(shortDayFormatter), SwingConstants.CENTER);
-                dayName.setFont(new Font("Segoe UI", Font.BOLD, 11));
+                dayName.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
                 JLabel dateLabel=new JLabel(String.valueOf(dayDate.getDayOfMonth()), SwingConstants.CENTER);
-                dateLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+                dateLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
                 if (dayDate.getDayOfWeek()==DayOfWeek.SUNDAY||dayDate.getDayOfWeek()==DayOfWeek.SATURDAY){
                     dayName.setForeground(PRIMARY_RED);
                     dateLabel.setForeground(PRIMARY_RED);
@@ -413,7 +413,7 @@ public class EventEditor {
                     ));
                     if (day==0){
                         JLabel timeLabel=new JLabel(String.format("%2d:00", hour));
-                        timeLabel.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+                        timeLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 10));
                         timeLabel.setForeground(TEXT_SECONDARY);
                         timeSlot.add(timeLabel, BorderLayout.WEST);
                     }
@@ -423,7 +423,7 @@ public class EventEditor {
                         LocalTime eventEnd=event.getEndTime().toLocalTime();
                         if (!eventEnd.isBefore(LocalTime.of(hour, 0))&&!eventStart.isAfter(LocalTime.of(hour+1, 0))){
                             JLabel eventLabel=new JLabel(event.getTitle());
-                            eventLabel.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+                            eventLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 10));
                             eventLabel.setForeground(PRIMARY_GREEN);
                             eventLabel.setBackground(new Color(230, 245, 230));
                             eventLabel.setOpaque(true);
@@ -451,7 +451,7 @@ public class EventEditor {
                     new EmptyBorder(4, 8, 4, 8)
                 ));
                 JLabel timeLabel=new JLabel(String.format("%02d:00", hour));
-                timeLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                timeLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
                 timeLabel.setForeground(TEXT_SECONDARY);
                 timeLabel.setPreferredSize(new Dimension(60, 0));
                 JPanel eventsPanel=new JPanel();
@@ -467,11 +467,11 @@ public class EventEditor {
                         eventPanel.setBorder(new EmptyBorder(4, 8, 4, 8));
                         eventPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
                         JLabel titleLabel=new JLabel(event.getTitle());
-                        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                        titleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
                         titleLabel.setForeground(PRIMARY_GREEN);
                         String timeRange=eventStart.format(timeFormatter)+"-"+eventEnd.format(timeFormatter);
                         JLabel timeRangeLabel=new JLabel(timeRange);
-                        timeRangeLabel.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+                        timeRangeLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 10));
                         timeRangeLabel.setForeground(TEXT_SECONDARY);
                         eventPanel.add(titleLabel, BorderLayout.NORTH);
                         eventPanel.add(timeRangeLabel, BorderLayout.SOUTH);
@@ -517,7 +517,7 @@ public class EventEditor {
                     dateHeader.setBorder(new EmptyBorder(8, 16, 8, 16));
                     dateHeader.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
                     JLabel dateLabel=new JLabel(eventDate.format(dateFormatter));
-                    dateLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+                    dateLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
                     dateLabel.setForeground(TEXT_PRIMARY);
                     if (eventDate.equals(LocalDate.now())){
                         dateLabel.setForeground(PRIMARY_BLUE);
@@ -535,11 +535,11 @@ public class EventEditor {
                 eventPanel.setBorder(new EmptyBorder(8, 32, 8, 16));
                 eventPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
                 JLabel timeLabel=new JLabel(event.getStartTime().format(timeFormatter)+" - "+event.getEndTime().format(timeFormatter));
-                timeLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+                timeLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
                 timeLabel.setForeground(TEXT_SECONDARY);
                 timeLabel.setPreferredSize(new Dimension(120, 0));
                 JLabel titleLabel=new JLabel(event.getTitle());
-                titleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+                titleLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
                 titleLabel.setForeground(TEXT_PRIMARY);
                 JPopupMenu eventMenu=new JPopupMenu();
                 JMenuItem deleteItem=new JMenuItem("Delete");
@@ -573,7 +573,7 @@ public class EventEditor {
             }
             if (monthEvents.isEmpty()){
                 JLabel emptyLabel=new JLabel("No events scheduled for this month", SwingConstants.CENTER);
-                emptyLabel.setFont(new Font("Segoe UI", Font.ITALIC, 14));
+                emptyLabel.setFont(new Font(Font.SANS_SERIF, Font.ITALIC, 14));
                 emptyLabel.setForeground(TEXT_SECONDARY);
                 emptyLabel.setBorder(new EmptyBorder(100, 0, 0, 0));
                 agendaPanel.add(emptyLabel);
@@ -604,14 +604,14 @@ public class EventEditor {
         gbc.gridx=0;
         gbc.gridy=0;
         JLabel titleLabel=new JLabel("Event Title:");
-        titleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        titleLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
         titleLabel.setForeground(textPrimary);
         formPanel.add(titleLabel, gbc);
         gbc.gridx=1;
         gbc.gridwidth=2;
         gbc.weightx=1.0;
         JTextField titleField=new JTextField(20);
-        titleField.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        titleField.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
         if (isEdit){
             titleField.setText(existingEvent.getTitle());
         }
@@ -621,14 +621,14 @@ public class EventEditor {
         gbc.gridwidth=1;
         gbc.weightx=0;
         JLabel dateLabel=new JLabel("Date:");
-        dateLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        dateLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
         dateLabel.setForeground(textPrimary);
         formPanel.add(dateLabel, gbc);
         gbc.gridx=1;
         gbc.gridwidth=2;
         gbc.weightx=1.0;
         JTextField dateField=new JTextField(20);
-        dateField.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        dateField.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
         dateField.setText(isEdit?existingEvent.getDate().toString():defaultDate.toString());
         formPanel.add(dateField, gbc);
         gbc.gridx=0;
@@ -636,14 +636,14 @@ public class EventEditor {
         gbc.gridwidth=1;
         gbc.weightx=0;
         JLabel startLabel=new JLabel("Start Time:");
-        startLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        startLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
         startLabel.setForeground(textPrimary);
         formPanel.add(startLabel, gbc);
         gbc.gridx=1;
         gbc.gridwidth=1;
         gbc.weightx=0.5;
         JTextField startTimeField=new JTextField(10);
-        startTimeField.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        startTimeField.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
         if (isEdit){
             startTimeField.setText(existingEvent.getStartTime().toLocalTime().toString());
         }
@@ -655,14 +655,14 @@ public class EventEditor {
         gbc.gridwidth=1;
         gbc.weightx=0.5;
         JLabel endLabel=new JLabel("End Time:");
-        endLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        endLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
         endLabel.setForeground(textPrimary);
         formPanel.add(endLabel, gbc);
         gbc.gridx=3;
         gbc.gridwidth=1;
         gbc.weightx=0.5;
         JTextField endTimeField=new JTextField(10);
-        endTimeField.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        endTimeField.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
         if (isEdit){
             endTimeField.setText(existingEvent.getEndTime().toLocalTime().toString());
         }
@@ -675,7 +675,7 @@ public class EventEditor {
         gbc.gridwidth=3;
         gbc.weightx=1.0;
         JLabel formatHint=new JLabel("Format: HH:MM (24-hour), e.g., 14:30 for 2:30 PM");
-        formatHint.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        formatHint.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
         formatHint.setForeground(textSecondary);
         formPanel.add(formatHint, gbc);
         JPanel buttonPanel=new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));

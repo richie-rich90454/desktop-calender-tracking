@@ -107,7 +107,6 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener{
     }
     private void createComponents(){
         monthYearLabel=new JLabel("", SwingConstants.CENTER);
-        // Use logical SansSerif for broad Unicode support
         monthYearLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 20));
         monthYearLabel.setForeground(TEXT_PRIMARY);
         JButton prevMonthBtn=UIComponentFactory.createTextButton("Previous", NEUTRAL_BG, NEUTRAL_LIGHT, NEUTRAL_MID, TEXT_PRIMARY);

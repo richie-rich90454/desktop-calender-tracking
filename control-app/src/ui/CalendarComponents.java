@@ -68,7 +68,7 @@ public class CalendarComponents{
         sidebarHeader.add(eventCountLabel, BorderLayout.SOUTH);
 
         JLabel upcomingLabel = new JLabel("Events for Selected Day");
-        upcomingLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        upcomingLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
         upcomingLabel.setForeground(TEXT_PRIMARY);
         upcomingLabel.setBorder(new EmptyBorder(0, 0, 10, 0));
 

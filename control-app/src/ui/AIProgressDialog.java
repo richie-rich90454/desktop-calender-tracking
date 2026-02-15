@@ -33,7 +33,7 @@ public class AIProgressDialog extends JDialog implements ProgressCallback{
         JPanel mainPanel=new JPanel(new BorderLayout(10, 10));
         mainPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
         outputArea.setEditable(false);
-        outputArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        outputArea.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
         outputArea.setLineWrap(true);
         outputArea.setWrapStyleWord(true);
         JScrollPane scrollPane=new JScrollPane(outputArea);
@@ -59,7 +59,7 @@ public class AIProgressDialog extends JDialog implements ProgressCallback{
         });
         copyButton.addActionListener(e->{
             String text=outputArea.getText();
-            if (text!=null && !text.isEmpty()){
+            if (text!=null&&!text.isEmpty()){
                 java.awt.datatransfer.StringSelection selection=new java.awt.datatransfer.StringSelection(text);
                 java.awt.datatransfer.Clipboard clipboard=Toolkit.getDefaultToolkit().getSystemClipboard();
                 clipboard.setContents(selection, selection);
@@ -70,7 +70,7 @@ public class AIProgressDialog extends JDialog implements ProgressCallback{
     private void appendLine(String line){
         SwingUtilities.invokeLater(()->{
             String timestamp=LocalTime.now().format(TIME_FORMATTER);
-            outputArea.append("[" + timestamp + "] " + line + "\n");
+            outputArea.append("["+timestamp+"] "+line+"\n");
             outputArea.setCaretPosition(outputArea.getDocument().getLength());
         });
     }
@@ -80,19 +80,19 @@ public class AIProgressDialog extends JDialog implements ProgressCallback{
     }
     @Override
     public void updateSuccess(String message){
-        appendLine("✓ " + message);
+        appendLine("✓ "+message);
     }
     @Override
     public void updateWarning(String message){
-        appendLine("⚠ " + message);
+        appendLine("⚠ "+message);
     }
     @Override
     public void updateError(String message){
-        appendLine("✗ " + message);
+        appendLine("✗ "+message);
     }
     @Override
     public void updateEvent(Event event){
-        String line="• " + event.getTitle() + " (" + event.getDate() + ", " + event.getStartTime().toLocalTime() + "-" + event.getEndTime().toLocalTime() + ")";
+        String line="• "+event.getTitle()+" ("+event.getDate()+", "+event.getStartTime().toLocalTime()+"-"+event.getEndTime().toLocalTime()+")";
         appendLine(line);
     }
     @Override
