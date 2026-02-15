@@ -107,7 +107,8 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener{
     }
     private void createComponents(){
         monthYearLabel=new JLabel("", SwingConstants.CENTER);
-        monthYearLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        // Use logical SansSerif for broad Unicode support
+        monthYearLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 20));
         monthYearLabel.setForeground(TEXT_PRIMARY);
         JButton prevMonthBtn=UIComponentFactory.createTextButton("Previous", NEUTRAL_BG, NEUTRAL_LIGHT, NEUTRAL_MID, TEXT_PRIMARY);
         JButton todayBtn=UIComponentFactory.createPrimaryButton("Today", PRIMARY_BLUE);
@@ -121,7 +122,7 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener{
         eventsListModel=new DefaultListModel<>();
         eventsList=new JList<>(eventsListModel);
         eventsList.setCellRenderer(new EventListCellRenderer());
-        eventsList.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        eventsList.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
         eventsList.setBackground(NEUTRAL_BG);
         eventsList.setSelectionBackground(PRIMARY_BLUE);
         eventsList.setSelectionForeground(Color.WHITE);
@@ -129,23 +130,23 @@ public class CalendarFrame extends JFrame implements PropertyChangeListener{
         eventsScrollPane.setBorder(new EmptyBorder(0, 0, 0, 0));
         eventsScrollPane.getVerticalScrollBar().setUnitIncrement(16);
         selectedDateLabel=new JLabel();
-        selectedDateLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        selectedDateLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 16));
         selectedDateLabel.setForeground(TEXT_PRIMARY);
         eventCountLabel=new JLabel();
-        eventCountLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        eventCountLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
         eventCountLabel.setForeground(TEXT_SECONDARY);
         addEventButton=UIComponentFactory.createPrimaryButton("+ New Event", PRIMARY_BLUE);
-        addEventButton.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        addEventButton.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
         setupButtonActions(prevMonthBtn, todayBtn, nextMonthBtn);
         calendarScrollPane=new JScrollPane(calendarGrid);
         calendarScrollPane.setPreferredSize(new Dimension(600, 400));
         JPanel navigationPanel=CalendarComponents.createNavigationPanel(prevMonthBtn, todayBtn, nextMonthBtn, monthYearLabel, viewModePanel);
         JPanel contentPanel=CalendarComponents.createContentPanel(calendarGrid, eventsScrollPane, selectedDateLabel, eventCountLabel, addEventButton, controller, calendarScrollPane);
         statusLabel=new JLabel("Ready");
-        statusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        statusLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
         statusLabel.setForeground(TEXT_SECONDARY);
         unsavedLabel=new JLabel("No unsaved changes");
-        unsavedLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        unsavedLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
         unsavedLabel.setForeground(TEXT_SECONDARY);
         JPanel statusBar=CalendarComponents.createStatusBar(statusLabel, unsavedLabel);
         setLayout(new BorderLayout());

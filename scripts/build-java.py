@@ -56,6 +56,7 @@ class JavaBuilder:
             "javac",
             "-d", str(self.build_dir),
             "-cp", cp_str,
+            "-encoding", "UTF-8",
             "--release", "17",
             "-Xlint:unchecked"
         ] + java_files
@@ -115,7 +116,7 @@ class JavaBuilder:
         jar_path = self.dist_dir / jar_name
         
         manifest_path = self.build_dir / "MANIFEST.MF"
-        with open(manifest_path, "w") as f:
+        with open(manifest_path, "w", encoding="utf-8") as f:
             f.write("""Manifest-Version: 1.0
 Main-Class: app.Main
 Class-Path: .
