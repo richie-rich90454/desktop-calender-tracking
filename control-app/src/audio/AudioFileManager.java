@@ -24,7 +24,8 @@ public class AudioFileManager{
     private static final String AUDIO_DIR_NAME="audio";
     private static final Pattern TRACK_PATTERN=Pattern.compile("^(\\d{3})_(.*)\\.(wav|mid|midi|ogg|flac)$");
     private static final String PREFIX_FORMAT="%03d";
-    private static final String[] SUPPORTED_INPUT_EXTENSIONS={"mp3", "wav", "mid", "midi", "ogg", "flac"};
+    private static final String[] SUPPORTED_INPUT_EXTENSIONS={
+"mp3", "wav", "mid", "midi", "ogg", "flac", "aac", "m4a", "aiff", "aif", "opus", "webm", "wma", "alac", "ape", "ac3", "dts", "caf", "3gp"};
     private static final String OUTPUT_EXTENSION="wav";
     private final Path audioDirectory;
     public AudioFileManager(){

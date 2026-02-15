@@ -76,6 +76,7 @@ public class AudioPlayerFrame extends JPanel{
         setupListeners();
         loadPlaylist();
         startPlaybackTimer();
+        UIManager.put("Button.disabledForeground", new Color(150, 150, 150));
     }
     private void initializeComponents(){
         playlistList.setCellRenderer(new AudioTrackCellRenderer());
@@ -159,7 +160,7 @@ public class AudioPlayerFrame extends JPanel{
         transportPanel.setBackground(NEUTRAL_BG);
         transportPanel.add(previousButton);
         playButton.setBackground(ACCENT_COLOR);
-        playButton.setForeground(Color.WHITE);
+        playButton.setForeground(TEXT_PRIMARY);
         playButton.setFont(new Font("Segoe UI", Font.BOLD, 14));
         playButton.addMouseListener(new java.awt.event.MouseAdapter(){
             public void mouseEntered(java.awt.event.MouseEvent evt){
@@ -167,6 +168,16 @@ public class AudioPlayerFrame extends JPanel{
             }
             public void mouseExited(java.awt.event.MouseEvent evt){
                 playButton.setBackground(ACCENT_COLOR);
+            }
+        });
+        playButton.addPropertyChangeListener("enabled", evt -> {
+            if (!playButton.isEnabled()){
+                playButton.setBackground(new Color(160, 160, 160));
+                playButton.setForeground(Color.DARK_GRAY);
+            }
+            else{
+                playButton.setBackground(ACCENT_COLOR);
+                playButton.setForeground(TEXT_PRIMARY);
             }
         });
         transportPanel.add(playButton);
@@ -288,11 +299,11 @@ public class AudioPlayerFrame extends JPanel{
             public boolean accept(File f){
                 if (f.isDirectory()) return true;
                 String name=f.getName().toLowerCase();
-                return name.endsWith(".mp3")||name.endsWith(".wav")||name.endsWith(".mid")||name.endsWith(".midi")||name.endsWith(".ogg")||name.endsWith(".flac");
+                return name.endsWith(".mp3")||name.endsWith(".wav")||name.endsWith(".mid")||name.endsWith(".midi")||name.endsWith(".ogg")||name.endsWith(".flac")||name.endsWith(".aac")||name.endsWith(".m4a")||name.endsWith(".aiff")||name.endsWith(".aif")||name.endsWith(".opus")||name.endsWith(".webm")||name.endsWith(".wma")||name.endsWith(".alac")||name.endsWith(".ape")||name.endsWith(".ac3")||name.endsWith(".dts")||name.endsWith(".caf")||name.endsWith(".3gp");
             }
             @Override
             public String getDescription(){
-                return "Audio Files (*.mp3, *.wav, *.mid, *.midi, *.ogg, *.flac)";
+                return "All Supported Audio Files (*.mp3, *.wav, *.mid, *.midi, *.ogg, *.flac, *.aac, *.m4a, *.aiff, *.opus, *.webm, *.wma, *.alac, *.ape, *.ac3, *.dts, *.caf, *.3gp)";
             }
         });
         int result=fileChooser.showOpenDialog(SwingUtilities.getWindowAncestor(this));

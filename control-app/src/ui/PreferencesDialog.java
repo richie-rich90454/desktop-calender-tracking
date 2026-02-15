@@ -48,7 +48,7 @@ public class PreferencesDialog extends JDialog {
         JButton applyButton=new JButton("Apply");
         applyButton.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         applyButton.setBackground(PRIMARY_BLUE);
-        applyButton.setForeground(Color.WHITE);
+        applyButton.setForeground(TEXT_PRIMARY);
         applyButton.setBorder(BorderFactory.createCompoundBorder(
             new LineBorder(PRIMARY_BLUE, 1),
             new EmptyBorder(6, 12, 6, 12)
